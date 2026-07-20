@@ -1,0 +1,94 @@
+============================================================
+      Multi-Layer Honeypot Framework for Cyber Attack Analysis
+                     Setup Guide for Team Members
+============================================================
+
+This guide will help you set up the development environment
+required to run this project.
+
+
+------------------------------------------------------------
+1. (Recommended) Create a Virtual Environment
+------------------------------------------------------------
+
+Windows
+
+python -m venv venv
+
+Activate:
+
+venv\Scripts\activate
+
+
+Linux / macOS
+
+python3 -m venv venv
+
+source venv/bin/activate
+
+
+------------------------------------------------------------
+2. Upgrade pip
+------------------------------------------------------------
+
+python -m pip install --upgrade pip
+
+
+------------------------------------------------------------
+3. Install Required Python Packages
+------------------------------------------------------------
+
+Run the following commands one by one.
+
+
+pip install flask flask-cors flask-socketio eventlet requests pandas scikit-learn joblib psutil python-dotenv
+
+pip install sqlalchemy flask-sqlalchemy
+
+pip install numpy matplotlib seaborn
+
+pip install scapy pyshark
+
+pip install paramiko
+
+
+------------------------------------------------------------
+4. Update Packages (Optional)
+------------------------------------------------------------
+
+pip install --upgrade pip
+
+
+------------------------------------------------------------
+6. If You Get Any Errors
+------------------------------------------------------------
+
+Try:
+
+python -m pip install --upgrade pip
+
+Then install the package again.
+
+
+------------------------------------------------------------
+5. Project Note
+------------------------------------------------------------
+
+*Do NOT modify project structure without discussing
+with the team.
+
+*Test your code before commiting
+
+*Always pull before pushing the code 
+
+Do NOT commit:
+
+- Virtual Environment (venv/)
+- .env
+- Database files
+- Logs
+- Evidence
+- Packet captures
+
+The project's .gitignore already excludes these files.
+
