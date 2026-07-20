@@ -1,0 +1,301 @@
+# ==========================================================
+# Multi-Layer Honeypot Framework for Cyber Attack Analysis
+# Universal .gitignore
+# ==========================================================
+
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+
+############################
+# Python Virtual Environment
+############################
+venv/
+.venv/
+env/
+ENV/
+virtualenv/
+.python-version
+
+############################
+# Environment Variables
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# Secrets & Credentials
+############################
+secrets/
+keys/
+private_keys/
+credentials/
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+
+############################
+# Databases
+############################
+*.db
+*.db3
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sql
+
+############################
+# Logs
+############################
+logs/
+log/
+*.log
+*.out
+*.err
+*.pid
+
+############################
+# Captured Packets
+############################
+*.pcap
+*.pcapng
+captures/
+
+############################
+# Digital Forensics Evidence
+############################
+evidence/
+artifacts/
+memory_dumps/
+disk_images/
+*.mem
+*.raw
+*.dd
+*.E01
+*.001
+
+############################
+# Malware Samples
+############################
+malware/
+samples/
+quarantine/
+
+############################
+# Reports (Generated)
+############################
+generated_reports/
+reports/output/
+exports/
+
+############################
+# Uploaded Files
+############################
+uploads/
+downloads/
+temp/
+tmp/
+
+############################
+# Cache
+############################
+.cache/
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+coverage/
+htmlcov/
+
+############################
+# Testing
+############################
+.coverage
+.coverage.*
+nosetests.xml
+pytestdebug.log
+
+############################
+# Jupyter
+############################
+.ipynb_checkpoints/
+
+############################
+# IDE
+############################
+.vscode/
+.idea/
+*.iml
+
+############################
+# OS Files
+############################
+.DS_Store
+Thumbs.db
+desktop.ini
+
+############################
+# Node.js
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################
+# React / Next.js
+############################
+.next/
+out/
+dist/
+build/
+.cache-loader/
+.parcel-cache/
+
+############################
+# Vite
+############################
+vite.svg
+
+############################
+# TypeScript
+############################
+*.tsbuildinfo
+
+############################
+# Docker
+############################
+docker-compose.override.yml
+
+############################
+# Terraform
+############################
+.terraform/
+terraform.tfstate*
+*.tfvars
+
+############################
+# Nginx
+############################
+nginx/logs/
+
+############################
+# SSL Certificates
+############################
+ssl/
+certs/
+
+############################
+# Runtime Data
+############################
+runtime/
+sessions/
+session_store/
+cookies/
+
+############################
+# AI Models
+############################
+models/
+checkpoints/
+weights/
+*.pt
+*.pth
+*.onnx
+
+############################
+# API Keys
+############################
+config/local.py
+config/secrets.py
+
+############################
+# Build Artifacts
+############################
+*.egg-info/
+.eggs/
+build/
+dist/
+
+############################
+# Archives
+############################
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+
+############################
+# Binary Files
+############################
+*.exe
+*.dll
+*.o
+*.obj
+*.class
+
+############################
+# Backup Files
+############################
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+
+############################
+# Local Config
+############################
+local_settings.py
+config.local.json
+
+############################
+# Generated Attack Data
+############################
+attack_logs/
+telemetry/
+analytics/
+metrics/
+detections/
+
+############################
+# Ignore Everything Inside These
+############################
+evidence/**
+captures/**
+generated_reports/**
+logs/**
+uploads/**
+downloads/**
+runtime/**
+temp/**
+
+############################
+# Keep Folder Structure
+############################
+!logs/.gitkeep
+!captures/.gitkeep
+!evidence/.gitkeep
+!generated_reports/.gitkeep
+!uploads/.gitkeep
+!downloads/.gitkeep
+!runtime/.gitkeep
+!temp/.gitkeep
+
+############################
+# End
+############################
