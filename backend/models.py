@@ -9,6 +9,7 @@ class SessionModel(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     ip_address = Column(String, index=True)
+    protocol = Column(String, default="SSH", index=True)
     country = Column(String, default="Unknown")
     city = Column(String, default="Unknown")
     latitude = Column(Float, nullable=True)
@@ -26,7 +27,9 @@ class EventModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String, ForeignKey("sessions.id"))
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    protocol = Column(String, default="SSH")
     event_type = Column(String)  # login_attempt, command_execution, deception_triggered, etc.
+    vulnerability_code = Column(String, nullable=True) # WPH, UCE, ID, DDE, HC, SIL, UFH, PSI, IQC, etc.
     input_data = Column(Text, nullable=True)
     output_data = Column(Text, nullable=True)
 
