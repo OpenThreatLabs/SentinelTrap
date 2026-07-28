@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentineltrap_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./sentinel.db
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  honeypot:
+    build:
+      context: ./honeypot
+      dockerfile: Dockerfile
+    container_name: sentineltrap_honeypot
+    ports:
+      - "2222:2222"
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - PORT=2222
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: sentineltrap_network
