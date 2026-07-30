@@ -4,6 +4,10 @@ import sys
 import threading
 import traceback
 import paramiko
+import requests
+from shell import VirtualShellSession
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 # Generate host key programmatically if it doesn't exist
 HOST_KEY_FILE = "test_rsa.key"
@@ -17,6 +21,7 @@ class HoneypotSSHServer(paramiko.ServerInterface):
     def __init__(self, client_ip):
         self.event = threading.Event()
         self.client_ip = client_ip
+        self.session_id = None
         self.username = None
 
     def check_channel_request(self, kind, chanid):
@@ -27,7 +32,23 @@ class HoneypotSSHServer(paramiko.ServerInterface):
     def check_auth_password(self, username, password):
         self.username = username
         print(f"[+] Login Attempt: IP={self.client_ip} | User={username} | Pass={password}")
-        # In a real honeypot, we accept all connections to capture commands
+        
+        # Log session registration to FastAPI backend
+        try:
+            r = requests.post(
+                f"{BACKEND_URL}/api/sessions",
+                json={
+                    "ip_address": self.client_ip,
+                    "username_attempted": username,
+                    "password_attempted": password
+                },
+                timeout=3
+            )
+            if r.status_code == 200:
+                self.session_id = r.json().get("session_id")
+        except Exception as e:
+            print(f"[-] Failed to register session in backend: {e}")
+            
         return paramiko.AUTH_SUCCESSFUL
 
     def get_allowed_auths(self, username):
@@ -63,11 +84,15 @@ def handle_connection(client_socket, client_ip):
             print("[-] Client did not request a shell.")
             return
 
-        # Interactive dummy shell session
-        chan.send("\r\nWelcome to Ubuntu 22.04.1 LTS (GNU/Linux 5.15.0-52-generic x86_64)\r\n\r\n")
+        # Initialize integrated virtual shell session
+        shell = VirtualShellSession(server.session_id, BACKEND_URL)
         
-        prompt = "root@prod-web-srv-01:~# "
-        chan.send(prompt)
+        chan.send("\r\nWelcome to Ubuntu 22.04.1 LTS (GNU/Linux 5.15.0-52-generic x86_64)\r\n\r\n")
+        chan.send(" * Documentation:  https://help.ubuntu.com\r\n")
+        chan.send(" * Management:     https://landscape.canonical.com\r\n")
+        chan.send(" * Support:        https://ubuntu.com/advantage\r\n\r\n")
+        
+        chan.send(shell.get_prompt())
         
         buf = ""
         while True:
@@ -78,30 +103,15 @@ def handle_connection(client_socket, client_ip):
             # Handle keypresses for terminal emulation
             if char in ['\r', '\n']:
                 chan.send('\r\n')
-                cmd = buf.strip()
-                if cmd == "exit":
+                response = shell.execute_command(buf)
+                if response == "exit":
                     break
-                elif cmd:
-                    # Log command executed by attacker
-                    print(f"[!] Command Executed (IP={client_ip}): {cmd}")
-                    
-                    # Basic response simulations
-                    if cmd == "whoami":
-                        chan.send("root\r\n")
-                    elif cmd == "pwd":
-                        chan.send("/root\r\n")
-                    elif cmd == "ls":
-                        chan.send("total 8\r\ndrwxr-xr-x 2 root root 4096 Jul 27 12:00 .\r\n-rw-r--r-- 1 root root  220 Jul 27 12:01 config.json\r\n")
-                    elif "cat" in cmd:
-                        if "config.json" in cmd:
-                            chan.send('{\n  "db_host": "10.0.8.22",\n  "db_port": 3306,\n  "api_key": "sk_prod_9021849128"\n}\r\n')
-                        else:
-                            chan.send("cat: file not found\r\n")
-                    else:
-                        chan.send(f"bash: {cmd.split()[0]}: command not found\r\n")
+                elif response:
+                    formatted_response = response.replace('\n', '\r\n')
+                    chan.send(formatted_response)
                 
                 buf = ""
-                chan.send(prompt)
+                chan.send(shell.get_prompt())
             elif char == '\x7f': # Backspace
                 if len(buf) > 0:
                     buf = buf[:-1]
@@ -109,19 +119,29 @@ def handle_connection(client_socket, client_ip):
             elif char == '\x03': # Ctrl+C
                 chan.send('^C\r\n')
                 buf = ""
-                chan.send(prompt)
+                chan.send(shell.get_prompt())
+            elif char == '\x04': # Ctrl+D
+                break
             else:
                 buf += char
                 chan.send(char)
 
+        # Notify backend that session has ended
+        if server.session_id:
+            try:
+                requests.patch(f"{BACKEND_URL}/api/sessions/{server.session_id}", timeout=2)
+            except Exception:
+                pass
+
         chan.close()
     except Exception as e:
         print(f"[-] Exception handling connection: {e}")
+        traceback.print_exc()
     finally:
         client_socket.close()
 
 def main():
-    server_port = 2222
+    server_port = int(os.getenv("PORT", "2222"))
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
@@ -137,7 +157,7 @@ def main():
     while True:
         try:
             client_socket, client_addr = server_socket.accept()
-            print(f"[+] Connection from {client_addr[0]}:{client_addr[1]}")
+            print(f"[+] Incoming connection from {client_addr[0]}:{client_addr[1]}")
             t = threading.Thread(target=handle_connection, args=(client_socket, client_addr[0]))
             t.daemon = True
             t.start()
