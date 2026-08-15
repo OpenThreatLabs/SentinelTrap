@@ -4,19 +4,26 @@ import io
 import json
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 import database
 import models
 import schemas
+import decoys
+import middleware
 from geolocate import IPThreatIntelligenceService
 from analytics import ThreatAnalyticsEngine
 from reporting import IncidentReportGenerator
+from exporter import ThreatTelemetryExporter
+from autoshun import AutoShunFirewallEngine
 
 # Create database tables automatically on launch
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="SentinelTrap Threat Intelligence Backend")
+
+# Enable Security Audit & API Rate Limiting Middleware
+app.add_middleware(middleware.SecurityAuditMiddleware, requests_per_minute=300)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include Decoy Management Router (/api/decoys)
+app.include_router(decoys.router)
 
 # Real-time WebSocket connection pool manager
 class ConnectionManager:
@@ -151,6 +161,11 @@ def get_ip_threat_profile(ip_address: str, db: Session = Depends(database.get_db
         **analytics_profile
     }
 
+@app.get("/api/firewall/rules")
+def get_autoshun_firewall_rules(risk_threshold: int = 75, db: Session = Depends(database.get_db)):
+    """Generate dynamic iptables, ufw, and decoy NAT redirection rules for high-risk IPs."""
+    return AutoShunFirewallEngine.generate_firewall_rules(db, risk_threshold)
+
 @app.get("/api/reports/pdf/{session_id}")
 def download_pdf_incident_report(session_id: str, db: Session = Depends(database.get_db)):
     """Generate and stream a forensic PDF Incident Report for a specific session."""
@@ -163,6 +178,21 @@ def download_pdf_incident_report(session_id: str, db: Session = Depends(database
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/api/reports/stix")
+def export_stix21_threat_intel(db: Session = Depends(database.get_db)):
+    """Export captured threat telemetry as a STIX 2.1 JSON Cyber Threat Intelligence bundle."""
+    return JSONResponse(content=ThreatTelemetryExporter.export_stix21_format(db))
+
+@app.get("/api/reports/cef")
+def export_cef_syslog_stream(db: Session = Depends(database.get_db)):
+    """Export event telemetry as Common Event Format (CEF) syslog stream for SIEM integrations."""
+    cef_data = ThreatTelemetryExporter.export_cef_format(db)
+    return StreamingResponse(
+        io.BytesIO(cef_data.encode()),
+        media_type="text/plain",
+        headers={"Content-Disposition": "attachment; filename=sentineltrap_events.cef"}
+    )
 
 @app.get("/api/stats/overview")
 def get_stats_overview(db: Session = Depends(database.get_db)):
@@ -178,7 +208,7 @@ def get_stats_overview(db: Session = Depends(database.get_db)):
     top_usernames = [{"name": k, "count": v} for k, v in sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
 
     # Top executed commands
-    commands = db.query(models.EventModel.input_data).filter(models.EventModel.event_type.in_(["command_execution", "web_scan_attempt", "ftp_command_execution"])).all()
+    commands = db.query(models.EventModel.input_data).filter(models.EventModel.event_type.in_(["command_execution", "web_scan_attempt", "ftp_command_execution", "redis_command_probe"])).all()
     cmd_counts = {}
     for (cmd,) in commands:
         if cmd:
