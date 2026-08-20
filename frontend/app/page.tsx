@@ -163,6 +163,8 @@ export default function Home() {
           )}
 
           {/* Footer */}
+          //SentinelTrap
+        
           <footer className="mt-8 border-t border-slate-800 pt-6 text-center text-xs text-slate-600">
             SentinelTrap © 2026 • Cybersecurity Honeypot Monitoring Platform
           </footer>
