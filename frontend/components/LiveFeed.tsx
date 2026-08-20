@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Radio, Pause, Play } from "lucide-react";
 import {
   categorizeEvent,
@@ -58,8 +58,7 @@ interface FeedRow {
 
 type ConnectionState = "connecting" | "open" | "closed" | "error";
 
-const WS_URL =
-  process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ?? "ws://127.0.0.1:8000/ws";
+const WS_URL = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "";
 
 const MAX_BUFFERED_ROWS = 500;
 const RECONNECT_BASE_DELAY_MS = 1000;
@@ -182,65 +181,78 @@ export default function LiveFeed({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pendingQueue = useRef<FeedRow[]>([]);
   const pausedRef = useRef(paused);
-  pausedRef.current = paused;
-
-  const connect = useCallback(() => {
-    wsRef.current?.close();
-    setConnState("connecting");
-
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      reconnectAttempt.current = 0;
-      setConnState("open");
-    };
-
-    ws.onmessage = (msg) => {
-      let parsed: RawMessage | null = null;
-      try {
-        parsed = JSON.parse(msg.data);
-      } catch {
-        return;
-      }
-      const row = parsed && toFeedRow(parsed);
-      if (!row) return;
-
-      if (pausedRef.current) {
-        pendingQueue.current.push(row);
-        setPendingCount(pendingQueue.current.length);
-        return;
-      }
-      setRows((prev) => {
-        const next = [...prev, row];
-        if (next.length > MAX_BUFFERED_ROWS) {
-          next.splice(0, next.length - MAX_BUFFERED_ROWS);
-        }
-        return next;
-      });
-    };
-
-    ws.onerror = () => setConnState("error");
-
-    ws.onclose = () => {
-      setConnState("closed");
-      wsRef.current = null;
-      const delay = Math.min(
-        RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt.current,
-        RECONNECT_MAX_DELAY_MS
-      );
-      reconnectAttempt.current += 1;
-      reconnectTimer.current = setTimeout(connect, delay);
-    };
-  }, []);
 
   useEffect(() => {
-    connect();
-    return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    let active = true;
+    let ws: WebSocket | null = null;
+
+    const doConnect = () => {
+      if (!active) return;
+      setConnState("connecting");
+
+      ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!active) return;
+        reconnectAttempt.current = 0;
+        setConnState("open");
+      };
+
+      ws.onmessage = (msg) => {
+        if (!active) return;
+        let parsed: RawMessage | null = null;
+        try {
+          parsed = JSON.parse(msg.data);
+        } catch {
+          return;
+        }
+        const row = parsed && toFeedRow(parsed);
+        if (!row) return;
+
+        if (pausedRef.current) {
+          pendingQueue.current.push(row);
+          setPendingCount(pendingQueue.current.length);
+          return;
+        }
+        setRows((prev) => {
+          const next = [...prev, row];
+          if (next.length > MAX_BUFFERED_ROWS) {
+            next.splice(0, next.length - MAX_BUFFERED_ROWS);
+          }
+          return next;
+        });
+      };
+
+      ws.onerror = () => {
+        if (active) setConnState("error");
+      };
+
+      ws.onclose = () => {
+        if (!active) return;
+        setConnState("closed");
+        wsRef.current = null;
+        const delay = Math.min(
+          RECONNECT_BASE_DELAY_MS * 2 ** reconnectAttempt.current,
+          RECONNECT_MAX_DELAY_MS
+        );
+        reconnectAttempt.current += 1;
+        reconnectTimer.current = setTimeout(doConnect, delay);
+      };
     };
-  }, [connect]);
+
+    doConnect();
+
+    return () => {
+      active = false;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (ws) ws.close();
+    };
+  }, []);
 
   function togglePause() {
     setPaused((p) => {

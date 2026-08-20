@@ -187,7 +187,7 @@ function computeDelays(lines: ReplayLine[]): number[] {
 
 export default function TerminalReplay({
   sessionId,
-  apiBaseUrl = "http://localhost:8000",
+  apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "",
   prompt = DEFAULT_PROMPT,
   className,
 }: TerminalReplayProps) {
@@ -207,47 +207,57 @@ export default function TerminalReplay({
   // Fetch session history whenever a new session is selected.
   useEffect(() => {
     if (!sessionId) {
-      setLines([]);
-      setCursor(0);
-      setState("idle");
-      return;
+      const timer = setTimeout(() => {
+        setLines([]);
+        setCursor(0);
+        setState("idle");
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
+    let active = true;
     const controller = new AbortController();
-    setState("loading");
-    setErrorMsg(null);
-    setCursor(0);
-    setPlaying(false);
 
-    fetch(`${apiBaseUrl}/api/sessions/${sessionId}/events`, {
-      signal: controller.signal,
-    })
-      .then(async (res) => {
+    const fetchSession = async () => {
+      setState("loading");
+      setErrorMsg(null);
+      setCursor(0);
+      setPlaying(false);
+
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/sessions/${sessionId}/events`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           throw new Error(`Server returned ${res.status} ${res.statusText}`);
         }
-        return res.json();
-      })
-      .then((data: HoneypotEvent[]) => {
-        const events = Array.isArray(data) ? data : [];
-        setLines(buildReplayLines(events));
-        setState("ready");
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
+        const data: HoneypotEvent[] = await res.json();
+        if (active) {
+          const events = Array.isArray(data) ? data : [];
+          setLines(buildReplayLines(events));
+          setState("ready");
+        }
+      } catch (err: unknown) {
+        if (!active || controller.signal.aborted) return;
         setErrorMsg(err instanceof Error ? err.message : "Failed to load session");
         setState("error");
-      });
+      }
+    };
 
-    return () => controller.abort();
+    fetchSession();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [sessionId, apiBaseUrl]);
 
   // Playback loop: reveal one line at a time, paced by inter-event delay / speed.
   useEffect(() => {
     if (!playing) return;
     if (cursor >= lines.length) {
-      setPlaying(false);
-      return;
+      const stopTimer = setTimeout(() => setPlaying(false), 0);
+      return () => clearTimeout(stopTimer);
     }
     const delay = (delays[cursor] ?? 250) / speed;
     timerRef.current = setTimeout(() => setCursor((c) => c + 1), delay);

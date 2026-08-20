@@ -1,297 +1,127 @@
 "use client";
 
-import { useState } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  Bell,
-  BarChart3,
-  Shield,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { Shield, Sun, Moon } from "lucide-react";
 
 import Header from "../components/Header";
 import MetricCards from "../components/MetricCards";
 import SessionSidebar from "../components/SessionSidebar";
 import Alerts from "../components/Alerts";
 import Analytics from "../components/Analytics";
+import SessionsView from "../components/SessionsView";
+import BackendFeaturesView from "../components/BackendFeaturesView";
 
 export default function Home() {
   const [activePage, setActivePage] = useState("Dashboard");
+  const [isDark, setIsDark] = useState(true);
 
-  const navigation = [
-    { name: "Dashboard", icon: LayoutDashboard },
-    { name: "Sessions", icon: Users },
-    { name: "Alerts", icon: Bell },
-    { name: "Analytics", icon: BarChart3 },
-    { name: "Backend Features", icon: Shield },
-  ];
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light") {
+      setIsDark(false);
+      document.documentElement.classList.remove("dark");
+    } else {
+      setIsDark(true);
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newMode = !isDark;
+    setIsDark(newMode);
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors duration-200 relative">
+      {/* Top Navbar */}
+      <Header
+        activePage={activePage}
+        setActivePage={setActivePage}
+        isDark={isDark}
+        setIsDark={setIsDark}
+      />
 
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-slate-800 bg-[#0b1120]">
-
-        {/* Logo */}
-        <div className="border-b border-slate-800 p-6">
-          <div className="flex items-center gap-3">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/10">
-              <Shield className="h-6 w-6 text-cyan-400" />
-            </div>
-
-            <div>
-              <h1 className="text-xl font-bold tracking-wide text-cyan-400">
-                SentinelTrap
-              </h1>
-
-              <p className="text-xs text-slate-500">
-                Cyber Defense Center
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-2 p-4">
-
-          {navigation.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <button
-                key={item.name}
-                onClick={() => setActivePage(item.name)}
-                className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm transition ${
-                  activePage === item.name
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                {item.name}
-              </button>
-            );
-          })}
-
-        </nav>
-
-        {/* System Status */}
-        <div className="border-t border-slate-800 p-4">
-
-          <div className="rounded-lg bg-slate-900 p-4">
-
-            <p className="text-xs text-slate-500">
-              SYSTEM STATUS
+      {/* Main Content Container */}
+      <section className="mx-auto max-w-7xl px-6 py-8">
+        {/* Page Heading */}
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 font-mono">
+              Security Operations Center
             </p>
-
-            <div className="mt-2 flex items-center gap-2">
-
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-
-              <span className="text-sm text-emerald-400">
-                All systems operational
-              </span>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </aside>
-
-      {/* Main Content */}
-      <section className="ml-64 min-h-screen">
-
-        <Header />
-
-        <div className="p-8">
-
-          {/* Heading */}
-          <div className="mb-8">
-
-            <p className="text-sm text-slate-500">
-              Security Operations
-            </p>
-
-            <h2 className="mt-1 text-2xl font-bold">
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
               {activePage}
             </h2>
-
           </div>
-
-          {/* Dashboard */}
-          {activePage === "Dashboard" && (
-            <>
-              <MetricCards />
-
-              <div className="mt-8 grid gap-6 xl:grid-cols-3">
-
-                <div className="xl:col-span-1">
-                  <SessionSidebar />
-                </div>
-
-                <div className="xl:col-span-2">
-
-                  <div className="rounded-xl border border-slate-800 bg-[#0b1120] p-8">
-
-                    <h2 className="text-lg font-semibold">
-                      Security Monitoring
-                    </h2>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      SentinelTrap security monitoring workspace.
-                    </p>
-
-                    <div className="mt-8 rounded-lg border border-dashed border-slate-700 p-10 text-center">
-
-                      <Shield className="mx-auto h-10 w-10 text-cyan-400" />
-
-                      <p className="mt-4 text-sm text-slate-400">
-                        Dashboard workspace ready.
-                      </p>
-
-                      <p className="mt-2 text-xs text-slate-600">
-                        Real-time security monitoring data will appear here.
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-            </>
-          )}
-
-          {/* Sessions */}
-          {activePage === "Sessions" && (
-            <div className="max-w-5xl">
-              <SessionSidebar />
-            </div>
-          )}
-
-          {/* Alerts */}
-          {activePage === "Alerts" && (
-            <div className="max-w-5xl">
-              <Alerts />
-            </div>
-          )}
-
-          {/* Analytics */}
-          {activePage === "Analytics" && (
-            <div className="max-w-5xl">
-              <Analytics />
-            </div>
-          )}
-
-          {/* Backend Features */}
-          {activePage === "Backend Features" && (
-            <div className="max-w-5xl">
-
-              <div className="rounded-xl border border-slate-800 bg-[#0b1120] p-8">
-
-                <h2 className="text-xl font-semibold text-white">
-                  Backend Features
-                </h2>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  SentinelTrap backend security services and monitoring features.
-                </p>
-
-                <div className="mt-8 grid gap-5 md:grid-cols-2">
-
-                  {/* Geolocate */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      🌍 Geolocate
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Identifies an attacker&apos;s IP location and provides
-                      threat-intelligence information.
-                    </p>
-                  </div>
-
-                  {/* Decoy */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      🎭 Decoy Management
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Manages decoy and honeypot services used to attract
-                      and monitor attackers.
-                    </p>
-                  </div>
-
-                  {/* AutoShun */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      🛡️ AutoShun
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Generates firewall rules for high-risk IP addresses
-                      to block or redirect attackers.
-                    </p>
-                  </div>
-
-                  {/* Middleware */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      ⚙️ Middleware
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Provides security controls such as request auditing
-                      and API rate limiting.
-                    </p>
-                  </div>
-
-                  {/* FTP */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      📁 FTP Server
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Provides a simulated FTP service for capturing and
-                      monitoring attacker activity.
-                    </p>
-                  </div>
-
-                  {/* Telnet */}
-                  <div className="rounded-xl border border-slate-800 bg-[#080d18] p-6">
-                    <h3 className="text-lg font-semibold text-cyan-400">
-                      💻 Telnet
-                    </h3>
-
-                    <p className="mt-3 text-sm text-slate-400">
-                      Provides a simulated Telnet service for monitoring
-                      attacker login and command activity.
-                    </p>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-          )}
-
-          {/* Footer */}
-          <footer className="mt-8 border-t border-slate-800 pt-6 text-center text-xs text-slate-600">
-            SentinelTrap © 2026 • Cybersecurity Honeypot Monitoring Platform
-          </footer>
-
         </div>
 
+        {/* Dashboard View */}
+        {activePage === "Dashboard" && (
+          <>
+            <MetricCards />
+
+            <div className="mt-8 grid gap-6 xl:grid-cols-3">
+              <div className="xl:col-span-1">
+                <SessionSidebar />
+              </div>
+
+              <div className="xl:col-span-2">
+                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-8 shadow-sm">
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
+                    Security Monitoring Workspace
+                  </h3>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Real-time decoy listening telemetry and automated honeytoken analysis.
+                  </p>
+
+                  <div className="mt-8 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-12 text-center">
+                    <Shield className="mx-auto h-8 w-8 text-zinc-400" />
+                    <p className="mt-4 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                      Security Engine Armed
+                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      All 9 honeypot listener daemons are monitoring incoming adversarial traffic.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Sessions */}
+        {activePage === "Sessions" && <SessionsView />}
+
+        {/* Alerts */}
+        {activePage === "Alerts" && <Alerts />}
+
+        {/* Analytics */}
+        {activePage === "Analytics" && <Analytics />}
+
+        {/* Backend Features */}
+        {activePage === "Backend Features" && <BackendFeaturesView />}
       </section>
 
+      {/* Floating Circular Day / Light Toggle Button in Bottom Right Corner */}
+      <button
+        onClick={toggleTheme}
+        aria-label="Toggle light/dark theme"
+        title={isDark ? "Switch to Day Mode" : "Switch to Dark Mode"}
+        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-zinc-800 dark:text-zinc-200 shadow-xl shadow-black/10 dark:shadow-cyan-500/10 backdrop-blur-md transition-all hover:scale-110 active:scale-95 hover:border-cyan-400/60"
+      >
+        {isDark ? (
+          <Sun className="h-5 w-5 text-amber-400 transition-transform duration-300 hover:rotate-45" />
+        ) : (
+          <Moon className="h-5 w-5 text-indigo-600 transition-transform duration-300 hover:-rotate-12" />
+        )}
+      </button>
     </main>
   );
 }

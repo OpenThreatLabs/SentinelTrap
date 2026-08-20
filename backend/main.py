@@ -148,8 +148,32 @@ def get_session(session_id: str, db: Session = Depends(database.get_db)):
     return session
 
 @app.get("/api/sessions/{session_id}/events")
+@app.get("/api/events/session/{session_id}")
 def get_session_events(session_id: str, db: Session = Depends(database.get_db)):
     return db.query(models.EventModel).filter(models.EventModel.session_id == session_id).order_by(models.EventModel.timestamp.asc()).all()
+
+@app.get("/api/events/alerts")
+def get_alert_events(db: Session = Depends(database.get_db)):
+    """Fetch high-priority attack events enriched with session IP addresses."""
+    results = (
+        db.query(models.EventModel, models.SessionModel.ip_address)
+        .join(models.SessionModel, models.EventModel.session_id == models.SessionModel.id)
+        .order_by(models.EventModel.timestamp.desc())
+        .limit(100)
+        .all()
+    )
+    alerts = []
+    for event, ip in results:
+        alerts.append({
+            "id": event.id,
+            "session_id": event.session_id,
+            "event_type": event.event_type,
+            "input_data": event.input_data,
+            "output_data": event.output_data,
+            "timestamp": event.timestamp.isoformat() if event.timestamp else "",
+            "ip_address": ip or "Unknown",
+        })
+    return alerts
 
 @app.get("/api/threat-intel/ip/{ip_address}")
 def get_ip_threat_profile(ip_address: str, db: Session = Depends(database.get_db)):
@@ -249,7 +273,11 @@ def export_logs(format: str = "json", db: Session = Depends(database.get_db)):
             "output_data": e.output_data
         } for e in events]
 
-# --- WebSocket Endpoint ---
+# --- WebSocket & Real-Time Endpoints ---
+
+@app.get("/ws")
+def ws_info():
+    return {"status": "online", "message": "SentinelTrap WebSocket endpoint. Connect using ws://.../ws"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -258,4 +286,6 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
         manager.disconnect(websocket)

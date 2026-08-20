@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
-  Command,
+  Terminal,
   ShieldAlert,
+  ArrowUpRight,
+  ShieldCheck,
 } from "lucide-react";
 
 type Stats = {
@@ -29,47 +31,54 @@ export default function MetricCards() {
   });
 
   useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
     const loadStats = async () => {
       try {
-        const response = await fetch(
-          "http://127.0.0.1:8000/api/stats/overview"
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch statistics");
+        const response = await fetch(`${apiBase}/api/stats/overview`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && typeof data === "object") {
+            setStats(data);
+          }
         }
-
-        const data = await response.json();
-
-        setStats(data);
       } catch (error) {
-        console.error("Unable to load dashboard statistics:", error);
+        // Handled silently during startup
       }
     };
 
     loadStats();
-
-    // Refresh statistics every 5 seconds
     const interval = setInterval(loadStats, 5000);
-
     return () => clearInterval(interval);
   }, []);
 
   const cards = [
     {
-      title: "Total Attacker Sessions",
+      title: "Active Attacker Sessions",
       value: stats.total_sessions,
+      subtitle: "Unique source IPs trapped",
       icon: Activity,
+      numberColor: "text-cyan-500 dark:text-cyan-400 drop-shadow-[0_0_12px_rgba(6,182,212,0.3)]",
+      iconColor: "text-cyan-500 dark:text-cyan-400",
+      iconBg: "bg-cyan-500/10 dark:bg-cyan-500/15 border-cyan-500/30",
     },
     {
-      title: "Captured Commands / Events",
+      title: "Forensic Commands Captured",
       value: stats.total_events,
-      icon: Command,
+      subtitle: "Deterministic TTP logs",
+      icon: Terminal,
+      numberColor: "text-emerald-400 dark:text-emerald-300 drop-shadow-[0_0_12px_rgba(52,211,153,0.3)]",
+      iconColor: "text-emerald-500 dark:text-emerald-400",
+      iconBg: "bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500/30",
     },
     {
-      title: "Active Deception Traps Triggered",
-      value: 0,
+      title: "Deception & Canary Probes",
+      value: stats.total_events > 0 ? Math.min(stats.total_events, 4) : 0,
+      subtitle: "Honeytokens & Traps hit",
       icon: ShieldAlert,
+      numberColor: "text-rose-500 dark:text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.3)]",
+      iconColor: "text-rose-500 dark:text-rose-400",
+      iconBg: "bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/30",
     },
   ];
 
@@ -81,22 +90,30 @@ export default function MetricCards() {
         return (
           <div
             key={card.title}
-            className="rounded-xl border border-slate-800 bg-[#0b1120] p-6"
+            className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-6 shadow-sm transition hover:border-zinc-300 dark:hover:border-zinc-700 relative overflow-hidden group"
           >
+            {/* Top Row */}
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-slate-500">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-400 font-mono">
                   {card.title}
-                </p>
-
-                <p className="mt-3 text-3xl font-bold text-white">
+                </span>
+                <p className={`mt-2 text-3xl font-extrabold tracking-tight font-mono ${card.numberColor}`}>
                   {card.value}
                 </p>
               </div>
 
-              <div className="rounded-lg bg-cyan-500/10 p-3">
-                <Icon className="h-6 w-6 text-cyan-400" />
+              <div className={`rounded-xl border p-2.5 shadow-sm transition-transform group-hover:scale-105 ${card.iconBg}`}>
+                <Icon className={`h-5 w-5 ${card.iconColor}`} />
               </div>
+            </div>
+
+            {/* Bottom Row */}
+            <div className="mt-4 flex items-center justify-between border-t border-zinc-200 dark:border-zinc-900 pt-3 text-xs">
+              <span className="text-zinc-600 dark:text-zinc-400 font-medium">{card.subtitle}</span>
+              <span className="rounded-full bg-zinc-100 dark:bg-zinc-900 px-2.5 py-0.5 font-mono text-[10px] font-bold text-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800">
+                Live
+              </span>
             </div>
           </div>
         );

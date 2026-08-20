@@ -32,9 +32,13 @@ class SecurityAuditMiddleware(BaseHTTPMiddleware):
         return False
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Pass through WebSocket upgrades without HTTP middleware interception
+        if request.scope.get("type") == "websocket" or request.url.path == "/ws":
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "127.0.0.1"
 
-        # Rate-limiting check for API endpoints (exempting WebSocket connections)
+        # Rate-limiting check for API endpoints
         if request.url.path.startswith("/api/") and self.is_rate_limited(client_ip):
             return JSONResponse(
                 status_code=429,
