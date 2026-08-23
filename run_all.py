@@ -45,25 +45,15 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    # 1. Backend API
-    start_service("FastAPI Backend API (Port 8000)", [sys.executable, "backend/main.py"])
+    # 1. Backend API (FastAPI & WebSockets on Port 8000)
+    start_service("FastAPI Backend & Telemetry Stream (Port 8000)", [sys.executable, "backend/main.py"])
 
-    # 2. SSH Honeypot
-    start_service("SSH Honeypot (Port 2222)", [sys.executable, "honeypot/server.py"])
+    # 2. Multi-Protocol Deception Suite (9 Decoy Traps: SSH, Telnet, HTTP, FTP, SMTP, MySQL, Redis, DNS, RDP)
+    start_service("9 Multi-Protocol Decoy Services (Honeypot Suite)", [sys.executable, "honeypot/runner.py"])
 
-    # 3. Web & API Honeypot
-    start_service("Web & REST API Honeypot (Ports 8080 & 8081)", [sys.executable, "honeypot/web_honeypot.py"])
-
-    # 4. IoT Telnet Honeypot
-    start_service("IoT Telnet Honeypot (Port 2323)", [sys.executable, "honeypot/telnet_honeypot.py"])
-
-    # 5. FTP & SMTP Honeypot
-    start_service("FTP & SMTP Honeypot (Ports 2121 & 2525)", [sys.executable, "honeypot/ftp_smtp_honeypot.py"])
-
-    # 6. Fake Open Ports Engine
-    start_service("Fake Open Ports Engine (Nmap Trap)", [sys.executable, "honeypot/fake_ports.py"])
-
-    print("\n[+] All SentinelTrap services launched successfully!")
+    print("\n[+] All SentinelTrap services (Backend + 9 Decoys) launched successfully!")
+    print("[+] SOC Dashboard available at: http://localhost:3000")
+    print("[+] REST API available at: http://localhost:8000")
     print("[+] Press CTRL+C to terminate all services gracefully.")
     print("------------------------------------------------------------\n")
 

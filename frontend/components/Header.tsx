@@ -47,15 +47,17 @@ export default function Header({
     let reconnectTimeout: NodeJS.Timeout;
     let isSubscribed = true;
 
-    // Dual-check: WebSocket + HTTP health check fallback
+    // Fast Dual-Check: WebSocket + HTTP polling fallback
     const checkHttpHealth = async () => {
       try {
         const res = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
-        if (res.ok && isSubscribed) {
-          setConnected(true);
+        if (isSubscribed) {
+          setConnected(res.ok);
         }
       } catch {
-        // Handled by WebSocket status
+        if (isSubscribed && (!socket || socket.readyState !== WebSocket.OPEN)) {
+          setConnected(false);
+        }
       }
     };
 
@@ -67,14 +69,15 @@ export default function Header({
           if (isSubscribed) setConnected(true);
         };
         socket.onclose = () => {
-          checkHttpHealth();
           if (isSubscribed) {
-            reconnectTimeout = setTimeout(connectWebSocket, 3000);
+            checkHttpHealth();
+            reconnectTimeout = setTimeout(connectWebSocket, 2000);
           }
         };
         socket.onerror = () => {
-          checkHttpHealth();
-          socket?.close();
+          if (isSubscribed) {
+            checkHttpHealth();
+          }
         };
       } catch {
         checkHttpHealth();
@@ -84,7 +87,7 @@ export default function Header({
     checkHttpHealth();
     connectWebSocket();
 
-    const healthInterval = setInterval(checkHttpHealth, 4000);
+    const healthInterval = setInterval(checkHttpHealth, 1500);
 
     return () => {
       isSubscribed = false;

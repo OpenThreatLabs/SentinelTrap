@@ -37,26 +37,51 @@ export default function Analytics() {
   useEffect(() => {
     const apiBase =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+    const wsUrl =
+      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+
+    let isMounted = true;
+    let ws: WebSocket | null = null;
 
     const loadOverview = async () => {
       try {
-        const response = await fetch(`${apiBase}/api/stats/overview`);
-        if (response.ok) {
+        const response = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
+        if (response.ok && isMounted) {
           const data = await response.json();
           if (data && typeof data === "object") {
             setStats(data);
           }
         }
       } catch (error) {
-        console.warn("Analytics overview not reached yet:", error);
+        // Handled silently
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    const setupWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = () => {
+          if (isMounted) loadOverview();
+        };
+        ws.onclose = () => {
+          if (isMounted) setTimeout(setupWs, 2500);
+        };
+      } catch {
+        // fallback to polling
       }
     };
 
     loadOverview();
-    const interval = setInterval(loadOverview, 5000);
-    return () => clearInterval(interval);
+    setupWs();
+    const interval = setInterval(loadOverview, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      ws?.close();
+    };
   }, []);
 
   const chartData = stats.top_commands;

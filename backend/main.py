@@ -249,16 +249,20 @@ def get_stats_overview(db: Session = Depends(database.get_db)):
     }
 
 @app.delete("/api/data/clear")
-def clear_all_captured_data(db: Session = Depends(database.get_db)):
+async def clear_all_captured_data(db: Session = Depends(database.get_db)):
     """
     Clears all captured attacker sessions, telemetry events, and triggered decoys.
-    Resets the SOC dashboard to a clean zero state.
+    Resets the SOC dashboard to a clean zero state and notifies all live WebSockets.
     """
     try:
         deleted_events = db.query(models.EventModel).delete()
         deleted_sessions = db.query(models.SessionModel).delete()
         db.query(models.DecoyModel).update({models.DecoyModel.status: "inactive", models.DecoyModel.triggered_by_session: None, models.DecoyModel.activated_at: None})
         db.commit()
+        
+        # Broadcast real-time purge event to all connected WebSockets immediately
+        await manager.broadcast(json.dumps({"event": "data_cleared", "timestamp": datetime.datetime.utcnow().isoformat()}))
+        
         return {
             "status": "success",
             "message": "All captured threat telemetry and attacker sessions have been purged.",
@@ -270,7 +274,7 @@ def clear_all_captured_data(db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to clear database: {str(e)}")
 
 @app.post("/api/data/seed")
-def seed_example_data(db: Session = Depends(database.get_db)):
+async def seed_example_data(db: Session = Depends(database.get_db)):
     """
     Populates realistic attacker sessions, credentials, geolocations, and MITRE commands for demonstration.
     """
@@ -407,6 +411,9 @@ def seed_example_data(db: Session = Depends(database.get_db)):
                     db.add(ev_obj)
                 db.commit()
 
+        # Broadcast real-time seed event to all connected WebSockets immediately
+        await manager.broadcast(json.dumps({"event": "data_seeded", "total_seeded": added_sessions, "timestamp": datetime.datetime.utcnow().isoformat()}))
+
         return {
             "status": "success",
             "message": f"Seeded {added_sessions} demo attacker sessions with forensic telemetry events.",
@@ -457,3 +464,7 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     except Exception:
         manager.disconnect(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

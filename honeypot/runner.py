@@ -3,6 +3,8 @@ import sys
 import time
 import threading
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # Import all multi-protocol honeypot server modules
 from server import main as start_ssh
 from telnet_server import TelnetHoneypotServer

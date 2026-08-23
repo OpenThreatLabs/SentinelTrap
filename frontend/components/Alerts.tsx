@@ -32,7 +32,7 @@ export default function Alerts() {
 
   const loadAlerts = async () => {
     try {
-      const res = await fetch(`${apiBase}/api/events/alerts`);
+      const res = await fetch(`${apiBase}/api/events/alerts`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -40,16 +40,40 @@ export default function Alerts() {
         }
       }
     } catch (err) {
-      console.warn("Failed to load alerts feed:", err);
+      // handled silently
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    const wsUrl = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+    let isMounted = true;
+    let ws: WebSocket | null = null;
+
+    const setupWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = () => {
+          if (isMounted) loadAlerts();
+        };
+        ws.onclose = () => {
+          if (isMounted) setTimeout(setupWs, 2500);
+        };
+      } catch {
+        // fallback to polling
+      }
+    };
+
     loadAlerts();
-    const interval = setInterval(loadAlerts, 5000);
-    return () => clearInterval(interval);
+    setupWs();
+    const interval = setInterval(loadAlerts, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      ws?.close();
+    };
   }, []);
 
   const getSeverity = (eventType: string, inputData: string = "") => {

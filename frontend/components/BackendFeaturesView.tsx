@@ -37,8 +37,7 @@ export default function BackendFeaturesView() {
         setClearSuccess("All captured attacker telemetry purged successfully!");
         setTimeout(() => {
           setClearSuccess(null);
-          window.location.reload();
-        }, 1200);
+        }, 3000);
       } else {
         alert("Failed to clear data. Ensure backend is running.");
       }
@@ -59,8 +58,7 @@ export default function BackendFeaturesView() {
         setClearSuccess("Sample demo attacker sessions populated successfully!");
         setTimeout(() => {
           setClearSuccess(null);
-          window.location.reload();
-        }, 1200);
+        }, 3000);
       } else {
         alert("Failed to seed demo data. Ensure backend is running.");
       }

@@ -38,26 +38,50 @@ export default function SessionSidebar({
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const wsUrl = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+
+    let isMounted = true;
+    let ws: WebSocket | null = null;
 
     const loadSessions = async () => {
       try {
-        const response = await fetch(`${apiBase}/api/sessions`);
-        if (response.ok) {
+        const response = await fetch(`${apiBase}/api/sessions`, { cache: "no-store" });
+        if (response.ok && isMounted) {
           const data = await response.json();
           if (Array.isArray(data)) {
             setSessions(data);
           }
         }
       } catch (error) {
-        // Handled silently during startup
+        // Handled silently
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    const setupWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = () => {
+          if (isMounted) loadSessions();
+        };
+        ws.onclose = () => {
+          if (isMounted) setTimeout(setupWs, 2500);
+        };
+      } catch {
+        // fallback to polling
       }
     };
 
     loadSessions();
-    const interval = setInterval(loadSessions, 5000);
-    return () => clearInterval(interval);
+    setupWs();
+    const interval = setInterval(loadSessions, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      ws?.close();
+    };
   }, []);
 
   return (

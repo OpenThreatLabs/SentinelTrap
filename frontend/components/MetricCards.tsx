@@ -32,24 +32,48 @@ export default function MetricCards() {
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const wsUrl = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+
+    let isMounted = true;
+    let ws: WebSocket | null = null;
 
     const loadStats = async () => {
       try {
-        const response = await fetch(`${apiBase}/api/stats/overview`);
-        if (response.ok) {
+        const response = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
+        if (response.ok && isMounted) {
           const data = await response.json();
           if (data && typeof data === "object") {
             setStats(data);
           }
         }
       } catch (error) {
-        // Handled silently during startup
+        // Handled silently
+      }
+    };
+
+    const setupWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = () => {
+          if (isMounted) loadStats();
+        };
+        ws.onclose = () => {
+          if (isMounted) setTimeout(setupWs, 2500);
+        };
+      } catch {
+        // fallback to polling
       }
     };
 
     loadStats();
-    const interval = setInterval(loadStats, 5000);
-    return () => clearInterval(interval);
+    setupWs();
+    const interval = setInterval(loadStats, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      ws?.close();
+    };
   }, []);
 
   const cards = [

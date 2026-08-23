@@ -49,7 +49,7 @@ export default function SessionsView() {
 
   const loadSessions = async () => {
     try {
-      const res = await fetch(`${apiBase}/api/sessions`);
+      const res = await fetch(`${apiBase}/api/sessions`, { cache: "no-store" });
       if (res.ok) {
         const data: Session[] = await res.json();
         if (Array.isArray(data)) {
@@ -60,16 +60,40 @@ export default function SessionsView() {
         }
       }
     } catch (err) {
-      console.warn("Sessions list not reached yet:", err);
+      // handled silently
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    const wsUrl = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+    let isMounted = true;
+    let ws: WebSocket | null = null;
+
+    const setupWs = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = () => {
+          if (isMounted) loadSessions();
+        };
+        ws.onclose = () => {
+          if (isMounted) setTimeout(setupWs, 2500);
+        };
+      } catch {
+        // fallback to polling
+      }
+    };
+
     loadSessions();
-    const interval = setInterval(loadSessions, 5000);
-    return () => clearInterval(interval);
+    setupWs();
+    const interval = setInterval(loadSessions, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      ws?.close();
+    };
   }, []);
 
   useEffect(() => {
