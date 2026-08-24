@@ -190,6 +190,17 @@ def get_autoshun_firewall_rules(risk_threshold: int = 75, db: Session = Depends(
     """Generate dynamic iptables, ufw, and decoy NAT redirection rules for high-risk IPs."""
     return AutoShunFirewallEngine.generate_firewall_rules(db, risk_threshold)
 
+@app.get("/api/reports/pdf/summary")
+@app.get("/api/export/pdf")
+def download_pdf_summary_report(db: Session = Depends(database.get_db)):
+    """Generate and stream a comprehensive Executive SOC Summary PDF Report."""
+    pdf_buffer = IncidentReportGenerator.generate_summary_pdf_report(db)
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=sentineltrap_soc_summary_report.pdf"}
+    )
+
 @app.get("/api/reports/pdf/{session_id}")
 def download_pdf_incident_report(session_id: str, db: Session = Depends(database.get_db)):
     """Generate and stream a forensic PDF Incident Report for a specific session."""
@@ -203,12 +214,48 @@ def download_pdf_incident_report(session_id: str, db: Session = Depends(database
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.get("/api/reports/csv")
+@app.get("/api/export/csv")
+def export_csv_threat_log(db: Session = Depends(database.get_db)):
+    """Export all captured events and sessions as a structured CSV spreadsheet."""
+    events = db.query(models.EventModel).order_by(models.EventModel.timestamp.desc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Event ID", "Session ID", "Origin IP", "Protocol", "Timestamp (UTC)", "Event Classification", "Command / Ingress Payload", "Output Response"])
+
+    for ev in events:
+        session = db.query(models.SessionModel).filter(models.SessionModel.id == ev.session_id).first()
+        ip = session.ip_address if session else "Unknown"
+        proto = session.protocol if session else "TCP"
+        writer.writerow([
+            ev.id,
+            ev.session_id,
+            ip,
+            proto,
+            ev.timestamp.isoformat() if ev.timestamp else "",
+            ev.event_type,
+            ev.input_data or "",
+            ev.output_data or ""
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sentineltrap_threat_events.csv"}
+    )
+
 @app.get("/api/reports/stix")
+@app.get("/api/threat-intel/stix2")
 def export_stix21_threat_intel(db: Session = Depends(database.get_db)):
     """Export captured threat telemetry as a STIX 2.1 JSON Cyber Threat Intelligence bundle."""
-    return JSONResponse(content=ThreatTelemetryExporter.export_stix21_format(db))
+    return JSONResponse(
+        content=ThreatTelemetryExporter.export_stix21_format(db),
+        headers={"Content-Disposition": "attachment; filename=sentineltrap_stix2.1_bundle.json"}
+    )
 
 @app.get("/api/reports/cef")
+@app.get("/api/export/cef")
 def export_cef_syslog_stream(db: Session = Depends(database.get_db)):
     """Export event telemetry as Common Event Format (CEF) syslog stream for SIEM integrations."""
     cef_data = ThreatTelemetryExporter.export_cef_format(db)

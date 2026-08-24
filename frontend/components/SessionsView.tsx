@@ -54,9 +54,15 @@ export default function SessionsView() {
         const data: Session[] = await res.json();
         if (Array.isArray(data)) {
           setSessions(data);
-          if (data.length > 0 && !selectedSession) {
-            setSelectedSession(data[0]);
-          }
+          // Only auto-select the first session if none was selected yet
+          setSelectedSession((prev) => {
+            if (!prev && data.length > 0) return data[0];
+            if (prev) {
+              const stillExists = data.find((s) => s.id === prev.id);
+              return stillExists || (data.length > 0 ? data[0] : null);
+            }
+            return null;
+          });
         }
       }
     } catch (err) {
@@ -96,32 +102,42 @@ export default function SessionsView() {
     };
   }, []);
 
+  const selectedSessionId = selectedSession?.id;
+
   useEffect(() => {
-    if (!selectedSession) {
+    if (!selectedSessionId) {
       setEvents([]);
       return;
     }
 
-    const loadEvents = async () => {
-      setEventsLoading(true);
+    let isMounted = true;
+
+    const loadEvents = async (showLoader = false) => {
+      if (showLoader) setEventsLoading(true);
       try {
-        const res = await fetch(`${apiBase}/api/events/session/${selectedSession.id}`);
-        if (res.ok) {
+        const res = await fetch(`${apiBase}/api/events/session/${selectedSessionId}`, { cache: "no-store" });
+        if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data)) {
             setEvents(data);
           }
         }
       } catch (err) {
-        console.warn("Events not reached yet:", err);
-        setEvents([]);
+        // handled silently
       } finally {
-        setEventsLoading(false);
+        if (isMounted && showLoader) setEventsLoading(false);
       }
     };
 
-    loadEvents();
-  }, [selectedSession]);
+    // Show spinner only on initial session click, then silently sync in background
+    loadEvents(true);
+    const interval = setInterval(() => loadEvents(false), 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedSessionId]);
 
   const filteredSessions = sessions.filter((s) => {
     const query = searchQuery.toLowerCase();

@@ -86,16 +86,38 @@ export default function BackendFeaturesView() {
     setDownloading(format);
     try {
       let endpoint = "";
-      if (format === "pdf") endpoint = `${apiBase}/api/export/pdf`;
-      else if (format === "csv") endpoint = `${apiBase}/api/export/csv`;
-      else if (format === "stix") endpoint = `${apiBase}/api/threat-intel/stix2`;
-      else if (format === "cef") endpoint = `${apiBase}/api/export/cef`;
+      let defaultFilename = "report";
 
-      window.open(endpoint, "_blank");
+      if (format === "pdf") {
+        endpoint = `${apiBase}/api/reports/pdf/summary`;
+        defaultFilename = "sentineltrap_soc_summary_report.pdf";
+      } else if (format === "csv") {
+        endpoint = `${apiBase}/api/reports/csv`;
+        defaultFilename = "sentineltrap_threat_events.csv";
+      } else if (format === "stix") {
+        endpoint = `${apiBase}/api/reports/stix`;
+        defaultFilename = "sentineltrap_stix2.1_bundle.json";
+      } else if (format === "cef") {
+        endpoint = `${apiBase}/api/reports/cef`;
+        defaultFilename = "sentineltrap_events.cef";
+      }
+
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = defaultFilename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error(`Export failed for format ${format}:`, err);
     } finally {
-      setTimeout(() => setDownloading(null), 1000);
+      setTimeout(() => setDownloading(null), 800);
     }
   };
 

@@ -111,3 +111,112 @@ class IncidentReportGenerator:
         doc.build(story)
         buffer.seek(0)
         return buffer
+
+    @staticmethod
+    def generate_summary_pdf_report(db: Session) -> io.BytesIO:
+        """
+        Generates an executive SOC Threat Intelligence Executive Summary PDF report
+        covering all captured attacker sessions, adversary origins, and MITRE techniques.
+        """
+        sessions = db.query(models.SessionModel).order_by(models.SessionModel.started_at.desc()).all()
+        events = db.query(models.EventModel).order_by(models.EventModel.timestamp.desc()).limit(150).all()
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+        story = []
+
+        styles = getSampleStyleSheet()
+
+        title_style = ParagraphStyle(
+            'TitleStyle',
+            parent=styles['Heading1'],
+            textColor=colors.HexColor('#0f172a'),
+            fontSize=20,
+            leading=24,
+            spaceAfter=10
+        )
+
+        h2_style = ParagraphStyle(
+            'H2Style',
+            parent=styles['Heading2'],
+            textColor=colors.HexColor('#1e293b'),
+            fontSize=13,
+            leading=16,
+            spaceBefore=10,
+            spaceAfter=6
+        )
+
+        body_style = ParagraphStyle(
+            'BodyStyle',
+            parent=styles['BodyText'],
+            fontSize=9,
+            leading=13,
+            textColor=colors.HexColor('#334155')
+        )
+
+        story.append(Paragraph("🛡️ SentinelTrap SOC Threat Intelligence Executive Summary", title_style))
+        story.append(Paragraph(f"<b>Report Generated:</b> {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
+        story.append(Paragraph(f"<b>Total Adversary Ingress Sessions:</b> {len(sessions)} | <b>Total Telemetry Events Logged:</b> {len(events)}", body_style))
+        story.append(Paragraph("<b>Supervising Node:</b> SentinelTrap Multi-Layer Honeypot Mesh (VIT Bhopal)", body_style))
+
+        story.append(Spacer(1, 10))
+
+        # Attacker Sessions Table
+        story.append(Paragraph("Adversary Ingress Sessions & Target Analysis", h2_style))
+        session_table_data = [["Origin IP", "Geolocation", "Protocol", "Attempted User", "Started Time"]]
+
+        for s in sessions[:15]:
+            session_table_data.append([
+                s.ip_address,
+                f"{s.city}, {s.country}",
+                s.protocol or "SSH",
+                s.username_attempted or "root",
+                s.started_at.strftime('%m-%d %H:%M')
+            ])
+
+        if len(session_table_data) == 1:
+            session_table_data.append(["-", "-", "-", "-", "No active sessions recorded yet."])
+
+        st = Table(session_table_data, colWidths=[90, 130, 60, 110, 150])
+        st.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(st)
+
+        story.append(Spacer(1, 12))
+
+        # Recent Attack Events Table
+        story.append(Paragraph("Recent Adversarial Telemetry & Deception Triggers", h2_style))
+        event_table_data = [["Timestamp", "Event Classification", "Command / Ingress Payload"]]
+
+        for ev in events[:20]:
+            time_str = ev.timestamp.strftime('%H:%M:%S')
+            detail = ev.input_data if ev.input_data else (ev.output_data or "")
+            if len(detail) > 75:
+                detail = detail[:75] + "..."
+            event_table_data.append([time_str, ev.event_type, detail])
+
+        if len(event_table_data) == 1:
+            event_table_data.append(["-", "-", "No forensic events captured."])
+
+        et = Table(event_table_data, colWidths=[70, 140, 330])
+        et.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e293b')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(et)
+
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
