@@ -1,0 +1,22 @@
+# =============================================================================
+# SentinelTrap - Unified Project Requirements
+# Install with: pip install -r requirements.txt
+# =============================================================================
+
+# FastAPI Backend & WebSockets
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.1
+websockets>=13.0.0
+sqlalchemy>=2.0.31
+pydantic>=2.8.0
+python-dotenv>=1.0.0
+
+# Honeypot Decoys & Cryptography
+paramiko>=3.4.0
+cryptography>=42.0.5
+cffi>=2.1.0
+pycparser>=2.22
+
+# Reporting & Forensic Exporters
+reportlab>=4.2.2
+requests>=2.32.3

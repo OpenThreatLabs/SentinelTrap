@@ -370,33 +370,50 @@ export default function SessionsView() {
                       No commands or deception events recorded for this session.
                     </div>
                   ) : (
-                    events.map((ev, idx) => (
-                      <div
-                        key={ev.id || idx}
-                        className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 p-3.5 space-y-2"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="rounded bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-mono text-[10px] font-semibold text-zinc-800 dark:text-zinc-200 uppercase border border-zinc-200 dark:border-zinc-700">
-                            {ev.event_type}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 font-mono">
-                            {new Date(ev.timestamp).toLocaleTimeString()}
-                          </span>
+                    events.map((ev, idx) => {
+                      const isCanary = ev.event_type?.includes("canary") || ev.event_type?.includes("tripwire");
+                      return (
+                        <div
+                          key={ev.id || idx}
+                          className={`rounded-lg border p-3.5 space-y-2 ${
+                            isCanary
+                              ? "border-rose-500/50 bg-rose-500/5 dark:bg-rose-950/20"
+                              : "border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span
+                              className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase border ${
+                                isCanary
+                                  ? "bg-rose-500/20 border-rose-500/50 text-rose-500 font-bold"
+                                  : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
+                              }`}
+                            >
+                              {isCanary ? "CANARY TRIPWIRE TRIPPED" : ev.event_type}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 font-mono">
+                              {new Date(ev.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          {ev.input_data && (
+                            <div className="rounded bg-zinc-900 dark:bg-black px-3 py-1.5 font-mono text-xs text-emerald-400 border border-zinc-800">
+                              $ {ev.input_data}
+                            </div>
+                          )}
+
+                          {ev.output_data && (
+                            <div className={`rounded px-3 py-1.5 font-mono text-[11px] whitespace-pre-wrap border ${
+                              isCanary
+                                ? "bg-rose-950/40 text-rose-300 border-rose-900/50"
+                                : "bg-zinc-900/90 dark:bg-black/90 text-amber-400 border border-zinc-800"
+                            }`}>
+                              {ev.output_data}
+                            </div>
+                          )}
                         </div>
-
-                        {ev.input_data && (
-                          <div className="rounded bg-zinc-900 dark:bg-black px-3 py-1.5 font-mono text-xs text-emerald-400 border border-zinc-800">
-                            $ {ev.input_data}
-                          </div>
-                        )}
-
-                        {ev.output_data && (
-                          <div className="rounded bg-zinc-900/90 dark:bg-black/90 px-3 py-1.5 font-mono text-[11px] text-amber-400 whitespace-pre-wrap border border-zinc-800">
-                            {ev.output_data}
-                          </div>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

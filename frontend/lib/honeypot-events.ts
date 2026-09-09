@@ -7,11 +7,14 @@ export interface HoneypotEvent {
   session_id?: string;
 }
 
-export type EventCategory = "command" | "deception" | "auth" | "system";
+export type EventCategory = "command" | "deception" | "canary" | "auth" | "system";
 
 export function categorizeEvent(eventType: string): EventCategory {
   if (!eventType) return "system";
   const type = eventType.toLowerCase();
+  if (type.includes("canary") || type.includes("tripwire")) {
+    return "canary";
+  }
   if (type.includes("deception") || type.includes("trap") || type.includes("honeytoken")) {
     return "deception";
   }
@@ -49,6 +52,30 @@ export function createShellReplayState(): ShellReplayState {
 
 export function simulateDeceptionResponse(input: string): { output: string; type: string } | null {
   const cmd = input.trim();
+  if (/\.aws\/credentials|\.aws\/config/i.test(cmd)) {
+    return {
+      type: "canary_tripwire_aws_credentials",
+      output: "[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n# CANARY-TRIPWIRE [AWS_CLI_KEY]: Cloud key access alerted.\n",
+    };
+  }
+  if (/\.ssh\/id_rsa|id_ed25519/i.test(cmd)) {
+    return {
+      type: "canary_tripwire_ssh_private_key",
+      output: "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE... [HONEYTOKEN TRAPPED] ...\n-----END OPENSSH PRIVATE KEY-----\n# CANARY-TRIPWIRE [SSH_KEY]: Private key access alerted.\n",
+    };
+  }
+  if (/\.git-credentials|github_token/i.test(cmd)) {
+    return {
+      type: "canary_tripwire_github_token",
+      output: "https://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com\n# CANARY-TRIPWIRE [GITHUB_PAT]: Scoped token access alerted.\n",
+    };
+  }
+  if (/service-account\.json|\.kube\/config/i.test(cmd)) {
+    return {
+      type: "canary_tripwire_gcp_service_account",
+      output: '{\n  "client_email": "canary-prod-agent@sentineltrap-cloud-defense.iam.gserviceaccount.com"\n}\n# CANARY-TRIPWIRE [GCP_KEY]: Service account access alerted.\n',
+    };
+  }
   if (/cat\s+.*passwd|grep\s+.*pass|cat\s+.*shadow/i.test(cmd)) {
     return {
       type: "credential_harvesting",

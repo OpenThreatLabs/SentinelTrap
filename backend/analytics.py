@@ -20,7 +20,14 @@ class ThreatAnalyticsEngine:
         classifications = set()
 
         for event in events:
-            cmd = (event.input_data or "").lower().strip()
+            ev_type = getattr(event, 'event_type', '') or ''
+            cmd = (getattr(event, 'input_data', None) or "").lower().strip()
+
+            # Rule 0: Canary Honeytoken Tripwire Triggered (Maximum Alert)
+            if ev_type == "canary_tripwire_triggered" or re.search(r'(\.aws/credentials|id_rsa|id_ed25519|\.git-credentials|github_token|ghp_|service-account\.json|\.kube/config|config\.php|passwords\.txt|secrets\.env)', cmd):
+                score += 50
+                indicators.append("Canary Honeytoken Tripwire Tripped")
+                classifications.add("Targeted Data Exfiltrator")
 
             # Rule 1: Credential / Password Searching
             if re.search(r'(passwd|shadow|id_rsa|pass|credentials)', cmd):
@@ -49,7 +56,9 @@ class ThreatAnalyticsEngine:
         final_score = min(score, 100)
 
         # Primary classification determination
-        if "Credential Harvester" in classifications:
+        if "Targeted Data Exfiltrator" in classifications:
+            primary_class = "Targeted Data Exfiltrator"
+        elif "Credential Harvester" in classifications:
             primary_class = "Credential Harvester"
         elif "DB Exploit Vector" in classifications:
             primary_class = "DB Exploit Vector"

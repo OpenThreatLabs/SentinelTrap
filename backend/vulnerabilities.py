@@ -81,6 +81,14 @@ VULN_PATTERNS = {
         r"password\s*=\s*['\"][^'\"]+['\"]",
         r"api_key\s*=\s*['\"][^'\"]+['\"]"
     ],
+    "CHT": [ # Canary Honeytoken Tripwire
+        r"(\.aws/credentials|\.aws/config|aws_access_key)",
+        r"(\.ssh/id_rsa|\.ssh/id_ed25519|id_rsa)",
+        r"(\.git-credentials|\.npmrc|github_token|ghp_)",
+        r"(service-account\.json|\.kube/config)",
+        r"(config\.php|wp-config\.php|\.env|secrets\.env)",
+        r"(passwords?\.txt|creds?\.txt|accounts?\.txt)"
+    ],
     "WPH": [ # Weak Password Hashing / Brute Force
         r"admin|root|password|123456|support|user|guest"
     ]
@@ -96,6 +104,7 @@ MITRE_MAP = {
     "ID": {"id": "T1203", "name": "Exploitation for Client Execution", "tactic": "Execution"},
     "DDE": {"id": "T1059.006", "name": "Python/Script Dynamic Execution", "tactic": "Execution"},
     "HC": {"id": "T1552.001", "name": "Credentials In Files", "tactic": "Credential Access"},
+    "CHT": {"id": "T1552.001", "name": "Canary Honeytoken Tripwire Tripped", "tactic": "Credential Access"},
     "WPH": {"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"}
 }
 
@@ -122,6 +131,7 @@ def calculate_risk_score(events_list):
     """
     score = 10
     weights = {
+        "CHT": 40,
         "UCE": 25,
         "PSI": 20,
         "SSRF": 20,

@@ -47,11 +47,13 @@ class VirtualShellSession:
         # Pass command to Adaptive Deception Engine first
         deception_output, triggered, deception_type = self.deception_engine.inspect_and_respond(cmd)
         if triggered:
-            # Log deception trap activation
+            # Log canary tripwire or deception trap activation
+            is_canary = "canary_tripwire" in deception_type
+            event_type = "canary_tripwire_triggered" if is_canary else "deception_triggered"
             self.log_event(
-                event_type="deception_triggered",
+                event_type=event_type,
                 input_data=cmd,
-                output_data=f"Trap activated: {deception_type}"
+                output_data=f"Tripwire Beacon Dispatched: {deception_type}" if is_canary else f"Trap activated: {deception_type}"
             )
             return deception_output
 
@@ -79,12 +81,57 @@ class VirtualShellSession:
         elif base_cmd == "whoami":
             return self.username + "\n"
 
+        elif base_cmd in ["uname", "uname -a"]:
+            return "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64 GNU/Linux\n"
+
         elif base_cmd == "id":
             return "uid=0(root) gid=0(root) groups=0(root)\n"
 
         elif base_cmd in ["ls", "ll"]:
+            show_all = len(parts) > 1 and ("-a" in parts[1] or "-la" in parts[1] or "-al" in parts[1])
             if self.cwd == "/root":
-                return "total 12\ndrwxr-xr-x 2 root root 4096 Jul 30 12:00 .\ndrwxr-xr-x 18 root root 4096 Jul 30 11:55 ..\n-rw-r--r-- 1 root root  220 Jul 30 12:01 config.json\n-rwxr-xr-x 1 root root  512 Jul 30 12:05 deploy.sh\n"
+                if show_all:
+                    return (
+                        "total 36\n"
+                        "drwx------ 6 root root 4096 Jul 30 12:00 .\n"
+                        "drwxr-xr-x 18 root root 4096 Jul 30 11:55 ..\n"
+                        "drwx------ 2 root root 4096 Jul 30 11:58 .aws\n"
+                        "drwx------ 2 root root 4096 Jul 30 11:58 .ssh\n"
+                        "drwxr-xr-x 2 root root 4096 Jul 30 11:59 .kube\n"
+                        "-rw------- 1 root root  240 Jul 30 11:58 .bash_history\n"
+                        "-rw------- 1 root root  180 Jul 30 11:59 .git-credentials\n"
+                        "-rw-r--r-- 1 root root  220 Jul 30 12:01 config.json\n"
+                        "-rwxr-xr-x 1 root root  512 Jul 30 12:05 deploy.sh\n"
+                        "-rw------- 1 root root  380 Jul 30 12:08 passwords.txt\n"
+                        "-rw------- 1 root root  640 Jul 30 12:10 service-account.json\n"
+                    )
+                return (
+                    "total 20\n"
+                    "drwxr-xr-x 2 root root 4096 Jul 30 12:00 .\n"
+                    "drwxr-xr-x 18 root root 4096 Jul 30 11:55 ..\n"
+                    "-rw-r--r-- 1 root root  220 Jul 30 12:01 config.json\n"
+                    "-rwxr-xr-x 1 root root  512 Jul 30 12:05 deploy.sh\n"
+                    "-rw------- 1 root root  380 Jul 30 12:08 passwords.txt\n"
+                    "-rw------- 1 root root  640 Jul 30 12:10 service-account.json\n"
+                )
+            elif self.cwd in ["/var/www", "/var/www/html"]:
+                return (
+                    "total 16\n"
+                    "drwxr-xr-x 2 www-data www-data 4096 Jul 30 12:00 .\n"
+                    "drwxr-xr-x 4 root     root     4096 Jul 30 11:55 ..\n"
+                    "-rw-r--r-- 1 www-data www-data 1150 Jul 30 12:01 index.php\n"
+                    "-rw-r--r-- 1 www-data www-data  420 Jul 30 12:03 config.php\n"
+                    "-rw------- 1 www-data www-data  210 Jul 30 12:04 .env\n"
+                )
+            elif self.cwd in ["/home/admin", "/home"]:
+                return (
+                    "total 12\n"
+                    "drwxr-xr-x 3 admin admin 4096 Jul 30 12:00 .\n"
+                    "drwxr-xr-x 4 root  root  4096 Jul 30 11:55 ..\n"
+                    "drwx------ 2 admin admin 4096 Jul 30 12:02 .ssh\n"
+                    "-rw------- 1 admin admin  180 Jul 30 12:03 .git-credentials\n"
+                    "-rw------- 1 admin admin  380 Jul 30 12:08 passwords.txt\n"
+                )
             else:
                 return "total 4\ndrwxr-xr-x 2 root root 4096 Jul 30 12:00 .\ndrwxr-xr-x 18 root root 4096 Jul 30 11:55 ..\n"
 
@@ -95,6 +142,8 @@ class VirtualShellSession:
                     return '{\n  "db_host": "10.0.4.18",\n  "db_port": 3306,\n  "api_key": "sk_prod_9021849128"\n}\n'
                 elif "deploy.sh" in filename:
                     return "#!/bin/bash\necho 'Deploying production web cluster...'\nsystemctl start app_service\n"
+                elif "index.php" in filename:
+                    return "<?php echo 'Production Portal v2.4.1'; ?>\n"
             return f"cat: {parts[1] if len(parts) > 1 else ''}: No such file or directory\n"
 
         elif base_cmd in ["sudo", "su"]:

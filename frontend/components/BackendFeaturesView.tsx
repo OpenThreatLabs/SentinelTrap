@@ -9,6 +9,7 @@ import {
   Lock,
   Globe,
   Flame,
+  Zap,
   CheckCircle,
   Copy,
   Check,
@@ -22,8 +23,77 @@ export default function BackendFeaturesView() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [simulating, setSimulating] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [clearSuccess, setClearSuccess] = useState<string | null>(null);
+
+  // Adaptive Server Persona State (Anti-Fingerprinting)
+  const [activePersona, setActivePersona] = useState<string>("all_mesh");
+  const [switchingPersona, setSwitchingPersona] = useState(false);
+
+  const personas: Record<string, { id: string; name: string; description: string; active_ports: number[]; active_decoys: string[]; simulated_os: string }> = {
+    web_app: {
+      id: "web_app",
+      name: "Cloud Web App Server (LAMP/Nginx)",
+      description: "Exposes public HTTP & SSH tiers while masking all database and backend services.",
+      active_ports: [8080, 2222],
+      active_decoys: ["SSH Honeypot", "Web Application Trap"],
+      simulated_os: "Debian 11 / Apache 2.4.56"
+    },
+    database_cluster: {
+      id: "database_cluster",
+      name: "Internal Database Node (MySQL/Redis)",
+      description: "Simulates an internal backend data cluster. Conceals web and edge mail services.",
+      active_ports: [3306, 6379, 2222],
+      active_decoys: ["SSH Honeypot", "MySQL Decoy", "Redis Decoy"],
+      simulated_os: "Ubuntu 22.04 LTS / MySQL 8.0 & Redis 7.0"
+    },
+    mail_gateway: {
+      id: "mail_gateway",
+      name: "Edge Mail & DNS Gateway",
+      description: "Presents an authoritative perimeter router. Exposes strictly SMTP, DNS, and SSH.",
+      active_ports: [2525, 5353, 2222],
+      active_decoys: ["SSH Honeypot", "SMTP Honeypot", "DNS Honeypot"],
+      simulated_os: "CentOS 7 / Postfix 3.5.8"
+    },
+    iot_router: {
+      id: "iot_router",
+      name: "IoT Edge Router (BusyBox/Telnet)",
+      description: "Embedded IoT network gateway. Traps automated Mirai/Mozi botnet brute-forcing on Telnet.",
+      active_ports: [2223, 8080],
+      active_decoys: ["Telnet Trap", "Web Application Trap"],
+      simulated_os: "Embedded Linux / BusyBox v1.33"
+    },
+    all_mesh: {
+      id: "all_mesh",
+      name: "Full Deception Mesh (Global Research)",
+      description: "Simulates all 9 protocol services concurrently for wide-spectrum threat collection.",
+      active_ports: [2222, 2223, 8080, 2121, 2525, 3306, 6379, 5353, 3389],
+      active_decoys: [
+        "SSH Honeypot", "Telnet Trap", "Web Application Trap",
+        "FTP Honeypot", "SMTP Honeypot", "MySQL Decoy",
+        "Redis Decoy", "DNS Honeypot", "Port Scanner / RDP"
+      ],
+      simulated_os: "Unified Multi-Layer Deception Matrix"
+    }
+  };
+
+  const handleSwitchPersona = async (personaId: string) => {
+    setSwitchingPersona(true);
+    try {
+      const res = await fetch(`${apiBase}/api/decoys/personas/${personaId}`, { method: "POST" });
+      if (res.ok) {
+        setActivePersona(personaId);
+      } else {
+        // Fallback local state switch
+        setActivePersona(personaId);
+      }
+    } catch {
+      setActivePersona(personaId);
+    } finally {
+      setSwitchingPersona(false);
+    }
+  };
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -49,24 +119,27 @@ export default function BackendFeaturesView() {
     }
   };
 
-  const handleSeedData = async () => {
-    setSeeding(true);
+  const handleSimulateAttack = async () => {
+    setSimulating(true);
     setClearSuccess(null);
     try {
-      const res = await fetch(`${apiBase}/api/data/seed`, { method: "POST" });
+      const res = await fetch(`${apiBase}/api/data/simulate-attack?persona=${activePersona}`, { method: "POST" });
       if (res.ok) {
-        setClearSuccess("Sample demo attacker sessions populated successfully!");
+        const data = await res.json();
+        const rule = data.autoshun_mitigation?.firewall_rule || `iptables -A INPUT -s ${data.ip_address} -j DROP`;
+        const personaName = personas[data.persona_used]?.name.split(" (")[0] || data.persona_used;
+        setClearSuccess(`Live attack [Persona: ${personaName}, Proto: ${data.protocol}] simulated from ${data.ip_address}! Canary tripped -> AutoShun: ${rule}`);
         setTimeout(() => {
           setClearSuccess(null);
-        }, 3000);
+        }, 8000);
       } else {
-        alert("Failed to seed demo data. Ensure backend is running.");
+        alert("Failed to simulate live attack. Ensure backend is running.");
       }
     } catch (err) {
-      console.error("Error seeding telemetry:", err);
+      console.error("Error simulating attack:", err);
       alert("Error reaching backend.");
     } finally {
-      setSeeding(false);
+      setSimulating(false);
     }
   };
 
@@ -164,10 +237,10 @@ export default function BackendFeaturesView() {
         <div className="mt-6 border-t border-zinc-100 dark:border-zinc-900 pt-5 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-mono">
-              Database Maintenance &amp; Demonstration
+              Live Threat Simulation &amp; Ingress Defense
             </h4>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Purge existing logs to reset the dashboard to 0, or load realistic attacker sessions for live exhibition reviews.
+              Launch a live adversarial ingress attack with Canary Honeytoken tripwires streamed to SOC, or reset the dashboard to 0.
             </p>
             {clearSuccess && (
               <p className="text-xs font-bold text-emerald-500 mt-1">
@@ -178,17 +251,18 @@ export default function BackendFeaturesView() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handleSeedData}
-              disabled={seeding || clearing}
-              className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 transition active:scale-95 disabled:opacity-50"
+              onClick={handleSimulateAttack}
+              disabled={simulating || clearing}
+              className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition active:scale-95 disabled:opacity-50 shadow-sm hover:shadow-amber-500/10"
+              title={`Simulates a live adversarial attack against the active '${personas[activePersona]?.name.split(" (")[0]}' persona architecture.`}
             >
-              <Database className="h-4 w-4" />
-              {seeding ? "Loading..." : "Seed Example Data"}
+              <Zap className={`h-4 w-4 text-amber-500 ${simulating ? "animate-bounce" : ""}`} />
+              {simulating ? "Simulating Live Ingress..." : `Simulate Attack (${personas[activePersona]?.name.split(" (")[0] || "Active"})`}
             </button>
 
             <button
               onClick={() => setIsConfirmOpen(true)}
-              disabled={clearing || seeding}
+              disabled={clearing || simulating}
               className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition active:scale-95 disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
@@ -329,40 +403,108 @@ export default function BackendFeaturesView() {
         </div>
       </div>
 
-      {/* 3. Multi-Protocol Honeypot Decoy Nodes */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4 mb-4">
+      {/* 3. Multi-Protocol Honeypot Decoy Nodes & Adaptive Persona Engine */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 shadow-sm space-y-6">
+        <div className="flex flex-wrap items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-4 gap-4">
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-blue-50 dark:bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
               <Database className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900 dark:text-white text-sm">9 Active Honeypot Listener Daemons</h3>
-              <p className="text-xs text-zinc-500">Supervised concurrently by honeypot/runner.py super-daemon orchestrator</p>
+              <h3 className="font-semibold text-zinc-900 dark:text-white text-sm">Adaptive Server Personas & Decoy Mesh</h3>
+              <p className="text-xs text-zinc-500">Anti-Fingerprinting Engine: dynamically mimics realistic single-purpose server architectures</p>
             </div>
+          </div>
+
+          {/* Active Persona Badge */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">Active Persona:</span>
+            <span className="rounded-lg bg-cyan-500/10 border border-cyan-500/30 px-3 py-1 font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">
+              {personas[activePersona]?.name.split(" (")[0] || "Adaptive"}
+            </span>
           </div>
         </div>
 
+        {/* Adaptive Persona Switcher Controls */}
+        <div className="rounded-xl bg-zinc-50 dark:bg-zinc-900/60 p-4 border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-cyan-500" />
+              Switch Target Server Persona (Solves Honeypot Fingerprinting)
+            </span>
+            <span className="text-[10px] font-mono text-zinc-400">
+              {personas[activePersona]?.simulated_os}
+            </span>
+          </div>
+
+          <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+            {Object.values(personas).map((p) => {
+              const isSelected = activePersona === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => handleSwitchPersona(p.id)}
+                  disabled={switchingPersona}
+                  className={`p-3 text-left rounded-xl border transition-all text-xs flex flex-col justify-between space-y-2 ${
+                    isSelected
+                      ? "bg-cyan-500/10 border-cyan-500 text-cyan-900 dark:text-cyan-300 shadow-sm"
+                      : "bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold">{p.name.split(" (")[0]}</span>
+                      {isSelected && (
+                        <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] opacity-80 leading-relaxed line-clamp-2">
+                      {p.description}
+                    </p>
+                  </div>
+                  <div className="font-mono text-[10px] text-zinc-500 pt-1 border-t border-zinc-200/50 dark:border-zinc-800/60">
+                    Ports: {p.active_ports.join(", ")}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Decoy Nodes Grid */}
         <div className="grid gap-3 sm:grid-cols-3">
-          {decoyNodes.map((node) => (
-            <div
-              key={node.name}
-              className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 p-4 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-zinc-900 dark:text-white">{node.name}</span>
-                <span className="rounded bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40">
-                  {node.status}
-                </span>
+          {decoyNodes.map((node) => {
+            const isExposed = personas[activePersona]?.active_decoys.includes(node.name);
+            return (
+              <div
+                key={node.name}
+                className={`rounded-lg border p-4 space-y-2 transition-all ${
+                  isExposed
+                    ? "border-emerald-500/40 bg-zinc-50 dark:bg-zinc-900/60"
+                    : "border-zinc-200 dark:border-zinc-800/50 bg-zinc-100/40 dark:bg-zinc-950/40 opacity-40"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-zinc-900 dark:text-white">{node.name}</span>
+                  <span
+                    className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${
+                      isExposed
+                        ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-300 dark:border-zinc-700"
+                    }`}
+                  >
+                    {isExposed ? "Listening" : "Masked"}
+                  </span>
+                </div>
+                <div className="font-mono text-xs text-zinc-600 dark:text-zinc-400">
+                  Port {node.port} / {node.protocol}
+                </div>
+                <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+                  {node.description}
+                </p>
               </div>
-              <div className="font-mono text-xs text-zinc-600 dark:text-zinc-400">
-                Port {node.port} / {node.protocol}
-              </div>
-              <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-                {node.description}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

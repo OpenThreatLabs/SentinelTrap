@@ -1,65 +1,78 @@
-import datetime
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-import database
-import models
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/decoys", tags=["Decoy Management"])
 
-# Default list of system decoy traps
-DEFAULT_DECOYS = [
-    {"name": "Honey Credential File (/etc/passwd)", "type": "file", "status": "active"},
-    {"name": "Decoy Database Cluster (10.0.4.18:3306)", "type": "database", "status": "active"},
-    {"name": "Decoy Routing Network (10.0.4.25)", "type": "network", "status": "active"},
-    {"name": "Honey Production API Keys (/etc/cloud/secrets.env)", "type": "file", "status": "inactive"}
-]
+# Adaptive Server Persona Presets
+# Solves supervisor's feedback: "Hackers will know if all ports are open"
+PERSONAS = {
+    "web_app": {
+        "id": "web_app",
+        "name": "Cloud Web Application Server (LAMP/Nginx)",
+        "description": "Exposes standard public web tiers while masking all database and backend ports.",
+        "active_ports": [8080, 2222],
+        "active_decoys": ["SSH Honeypot", "Web Application Trap"],
+        "simulated_os": "Debian 11 / Apache 2.4.56"
+    },
+    "database_cluster": {
+        "id": "database_cluster",
+        "name": "Internal Enterprise Database Node",
+        "description": "Simulates an internal backend database cluster. Conceals web and mail services.",
+        "active_ports": [3306, 6379, 2222],
+        "active_decoys": ["SSH Honeypot", "MySQL Decoy", "Redis Decoy"],
+        "simulated_os": "Ubuntu 22.04 LTS / MySQL 8.0 & Redis 7.0"
+    },
+    "mail_gateway": {
+        "id": "mail_gateway",
+        "name": "Edge Mail & DNS Gateway",
+        "description": "Presents an authoritative perimeter mail router. Exposes strictly SMTP and DNS.",
+        "active_ports": [2525, 5353, 2222],
+        "active_decoys": ["SSH Honeypot", "SMTP Honeypot", "DNS Honeypot"],
+        "simulated_os": "CentOS 7 / Postfix 3.5.8"
+    },
+    "iot_router": {
+        "id": "iot_router",
+        "name": "IoT Edge Router & Gateway (Cisco/BusyBox)",
+        "description": "Simulates an embedded IoT gateway running BusyBox. Traps automated Mirai/Mozi botnet brute-forcing on Telnet.",
+        "active_ports": [2223, 8080],
+        "active_decoys": ["Telnet Trap", "Web Application Trap"],
+        "simulated_os": "Embedded Linux / BusyBox v1.33 (MIPS/ARM)"
+    },
+    "all_mesh": {
+        "id": "all_mesh",
+        "name": "Full Deception Mesh (Global Research Trap)",
+        "description": "Simulates all 9 protocol services simultaneously for wide-spectrum threat intelligence collection.",
+        "active_ports": [2222, 2223, 8080, 2121, 2525, 3306, 6379, 5353, 3389],
+        "active_decoys": [
+            "SSH Honeypot", "Telnet Trap", "Web Application Trap",
+            "FTP Honeypot", "SMTP Honeypot", "MySQL Decoy",
+            "Redis Decoy", "DNS Honeypot", "Port Scanner / RDP"
+        ],
+        "simulated_os": "Unified Multi-Layer Deception Matrix"
+    }
+}
 
-def seed_default_decoys(db: Session):
-    """Ensure default decoy configurations exist in the database."""
-    count = db.query(models.DecoyModel).count()
-    if count == 0:
-        for d in DEFAULT_DECOYS:
-            decoy = models.DecoyModel(
-                name=d["name"],
-                type=d["type"],
-                status=d["status"]
-            )
-            db.add(decoy)
-        db.commit()
+# Current in-memory active persona (Defaults to all_mesh)
+current_persona_id = "all_mesh"
 
-@router.get("")
-def list_decoys(db: Session = Depends(database.get_db)):
-    """List all registered adaptive decoy traps and their current activation status."""
-    seed_default_decoys(db)
-    return db.query(models.DecoyModel).all()
+@router.get("/personas")
+def get_personas():
+    """Returns available adaptive server personas and the currently active profile."""
+    return {
+        "current_persona": current_persona_id,
+        "personas": list(PERSONAS.values())
+    }
 
-@router.post("/trigger/{decoy_id}")
-def trigger_decoy(decoy_id: int, session_id: str = None, db: Session = Depends(database.get_db)):
-    """Manually activate or trigger a decoy trap for testing / live demo purposes."""
-    seed_default_decoys(db)
-    decoy = db.query(models.DecoyModel).filter(models.DecoyModel.id == decoy_id).first()
-    if not decoy:
-        raise HTTPException(status_code=404, detail=f"Decoy trap '{decoy_id}' not found")
+@router.post("/personas/{persona_id}")
+def set_active_persona(persona_id: str):
+    """Dynamically switch the active deception persona on the fly."""
+    global current_persona_id
+    if persona_id not in PERSONAS:
+        raise HTTPException(status_code=404, detail=f"Persona '{persona_id}' not found")
+    
+    current_persona_id = persona_id
+    return {
+        "status": "success",
+        "message": f"Active persona switched to {PERSONAS[persona_id]['name']}",
+        "active_persona": PERSONAS[persona_id]
+    }
 
-    decoy.status = "active"
-    decoy.activated_at = datetime.datetime.utcnow()
-    if session_id:
-        decoy.triggered_by_session = session_id
-    db.commit()
-    db.refresh(decoy)
-
-    return {"status": "success", "message": f"Decoy '{decoy.name}' activated", "decoy": decoy}
-
-@router.post("/reset/{decoy_id}")
-def reset_decoy(decoy_id: int, db: Session = Depends(database.get_db)):
-    """Reset a decoy trap status back to inactive."""
-    seed_default_decoys(db)
-    decoy = db.query(models.DecoyModel).filter(models.DecoyModel.id == decoy_id).first()
-    if not decoy:
-        raise HTTPException(status_code=404, detail=f"Decoy trap '{decoy_id}' not found")
-
-    decoy.status = "inactive"
-    decoy.triggered_by_session = None
-    db.commit()
-
-    return {"status": "success", "message": f"Decoy '{decoy.name}' reset to inactive"}
