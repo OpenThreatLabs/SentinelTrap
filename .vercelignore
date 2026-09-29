@@ -1,0 +1,4 @@
+backend/
+honeypot/
+.venv/
+*.py

@@ -199,6 +199,7 @@ def get_autoshun_firewall_rules(risk_threshold: int = 75, db: Session = Depends(
     return AutoShunFirewallEngine.generate_firewall_rules(db, risk_threshold)
 
 @app.get("/api/reports/pdf/summary")
+@app.get("/api/reports/pdf")
 @app.get("/api/export/pdf")
 def download_pdf_summary_report(db: Session = Depends(database.get_db)):
     """Generate and stream a comprehensive Executive SOC Summary PDF Report."""
