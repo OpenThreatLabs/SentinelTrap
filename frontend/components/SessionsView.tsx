@@ -44,8 +44,7 @@ export default function SessionsView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | "active" | "closed">("all");
 
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   const loadSessions = async () => {
     try {
@@ -73,7 +72,11 @@ export default function SessionsView() {
   };
 
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+    const wsUrl =
+      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
+      (typeof window !== "undefined"
+        ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+        : "");
     let isMounted = true;
     let ws: WebSocket | null = null;
 

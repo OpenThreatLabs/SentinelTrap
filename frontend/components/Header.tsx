@@ -33,9 +33,11 @@ export default function Header({
 
   useEffect(() => {
     const wsUrl =
-      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
-    const apiBase =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
+      (typeof window !== "undefined"
+        ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+        : "");
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
     let socket: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;

@@ -58,7 +58,16 @@ interface FeedRow {
 
 type ConnectionState = "connecting" | "open" | "closed" | "error";
 
-const WS_URL = process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "";
+function getWsUrl(): string {
+  if (process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL) {
+    return process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL;
+  }
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}/ws`;
+  }
+  return "";
+}
 
 const MAX_BUFFERED_ROWS = 500;
 const RECONNECT_BASE_DELAY_MS = 1000;
@@ -198,7 +207,9 @@ export default function LiveFeed({
       if (!active) return;
       setConnState("connecting");
 
-      ws = new WebSocket(WS_URL);
+      const wsEndpoint = getWsUrl();
+      if (!wsEndpoint) return;
+      ws = new WebSocket(wsEndpoint);
       wsRef.current = ws;
 
       ws.onopen = () => {

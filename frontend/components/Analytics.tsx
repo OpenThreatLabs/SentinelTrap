@@ -85,10 +85,12 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
   const wsUrl =
-    process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL || "ws://127.0.0.1:8000/ws";
+    process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
+    (typeof window !== "undefined"
+      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+      : "");
 
   useEffect(() => {
     let isMounted = true;

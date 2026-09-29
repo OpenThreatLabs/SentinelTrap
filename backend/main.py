@@ -1,3 +1,9 @@
+import os
+import sys
+
+# Ensure local backend modules are always resolvable on Vercel
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import asyncio
 import csv
 import datetime
