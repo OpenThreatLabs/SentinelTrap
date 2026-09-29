@@ -116,13 +116,14 @@ export default function MetricCards() {
 
   return (
     <div className="grid gap-5 md:grid-cols-3">
-      {cards.map((card) => {
+      {cards.map((card, idx) => {
         const Icon = card.icon;
 
         return (
           <div
             key={card.title}
-            className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-6 shadow-sm transition hover:border-zinc-300 dark:hover:border-zinc-700 relative overflow-hidden group"
+            style={{ animationDelay: `${idx * 80}ms` }}
+            className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-6 shadow-sm transition-all duration-300 hover:border-cyan-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/5 relative overflow-hidden group"
           >
             {/* Top Row */}
             <div className="flex items-start justify-between">
@@ -130,12 +131,12 @@ export default function MetricCards() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-400 font-mono">
                   {card.title}
                 </span>
-                <p className={`mt-2 text-3xl font-extrabold tracking-tight font-mono ${card.numberColor}`}>
+                <p className={`mt-2 text-3xl font-extrabold tracking-tight font-mono transition-all duration-300 ${card.numberColor}`}>
                   {card.value}
                 </p>
               </div>
 
-              <div className={`rounded-xl border p-2.5 shadow-sm transition-transform group-hover:scale-105 ${card.iconBg}`}>
+              <div className={`rounded-xl border p-2.5 shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 ${card.iconBg}`}>
                 <Icon className={`h-5 w-5 ${card.iconColor}`} />
               </div>
             </div>

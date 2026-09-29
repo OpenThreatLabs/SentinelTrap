@@ -185,12 +185,12 @@ export default function Analytics() {
       {/* 1. PRIMARY EXECUTIVE KPI METRIC CARDS */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Attacker Sessions */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition hover:border-cyan-500/40">
+        <div style={{ animationDelay: "0ms" }} className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition-all duration-300 hover:border-cyan-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-cyan-500/5 group">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               Intercepted Adversaries
             </p>
-            <div className="rounded-lg bg-cyan-500/10 dark:bg-cyan-500/15 p-2 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30">
+            <div className="rounded-lg bg-cyan-500/10 dark:bg-cyan-500/15 p-2 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 transition-transform group-hover:scale-110">
               <Users className="h-4 w-4" />
             </div>
           </div>
@@ -204,12 +204,12 @@ export default function Analytics() {
         </div>
 
         {/* Forensic Keystrokes & TTP Events */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition hover:border-emerald-500/40">
+        <div style={{ animationDelay: "80ms" }} className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition-all duration-300 hover:border-emerald-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-emerald-500/5 group">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               Forensic TTP Events
             </p>
-            <div className="rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 p-2 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30">
+            <div className="rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 p-2 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30 transition-transform group-hover:scale-110">
               <Activity className="h-4 w-4" />
             </div>
           </div>
@@ -223,12 +223,12 @@ export default function Analytics() {
         </div>
 
         {/* Canary Honeytoken Tripwires */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition hover:border-rose-500/40">
+        <div style={{ animationDelay: "160ms" }} className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition-all duration-300 hover:border-rose-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-rose-500/5 group">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               Canary Tripwires
             </p>
-            <div className="rounded-lg bg-rose-500/10 dark:bg-rose-500/15 p-2 text-rose-500 dark:text-rose-400 border border-rose-500/30">
+            <div className="rounded-lg bg-rose-500/10 dark:bg-rose-500/15 p-2 text-rose-500 dark:text-rose-400 border border-rose-500/30 transition-transform group-hover:scale-110">
               <Key className="h-4 w-4" />
             </div>
           </div>
@@ -242,12 +242,12 @@ export default function Analytics() {
         </div>
 
         {/* Deception Mesh Personas */}
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition hover:border-amber-500/40">
+        <div style={{ animationDelay: "240ms" }} className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 p-5 shadow-sm transition-all duration-300 hover:border-amber-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-amber-500/5 group">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               Deception Mesh
             </p>
-            <div className="rounded-lg bg-amber-500/10 dark:bg-amber-500/15 p-2 text-amber-500 dark:text-amber-400 border border-amber-500/30">
+            <div className="rounded-lg bg-amber-500/10 dark:bg-amber-500/15 p-2 text-amber-500 dark:text-amber-400 border border-amber-500/30 transition-transform group-hover:scale-110">
               <Radio className="h-4 w-4" />
             </div>
           </div>

@@ -10,10 +10,13 @@ import Alerts from "../components/Alerts";
 import Analytics from "../components/Analytics";
 import SessionsView from "../components/SessionsView";
 import BackendFeaturesView from "../components/BackendFeaturesView";
+import ServerStatusBanner from "../components/ServerStatusBanner";
+import ServerWakeModal from "../components/ServerWakeModal";
 
 export default function Home() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [isDark, setIsDark] = useState(true);
+  const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -38,18 +41,40 @@ export default function Home() {
     }
   };
 
+  const retryBackendConnection = async () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    try {
+      const res = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
+      if (res.ok) setIsConnected(true);
+    } catch {
+      // Still sleeping
+    }
+  };
+
   return (
     <main className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors duration-200 relative">
+      {/* Front-and-center waking card modal */}
+      <ServerWakeModal
+        isOffline={!isConnected}
+        onRetry={retryBackendConnection}
+      />
+
       {/* Top Navbar */}
       <Header
         activePage={activePage}
         setActivePage={setActivePage}
         isDark={isDark}
         setIsDark={setIsDark}
+        onConnectionChange={setIsConnected}
       />
 
       {/* Main Content Container */}
       <section className="mx-auto max-w-7xl px-6 py-8">
+        <ServerStatusBanner
+          isOffline={!isConnected}
+          onRetry={retryBackendConnection}
+        />
+
         {/* Page Heading */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -62,51 +87,54 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Dashboard View */}
-        {activePage === "Dashboard" && (
-          <>
-            <MetricCards />
+        {/* Page Content with Smooth Transition */}
+        <div key={activePage} className="animate-page-enter">
+          {/* Dashboard View */}
+          {activePage === "Dashboard" && (
+            <>
+              <MetricCards />
 
-            <div className="mt-8 grid gap-6 xl:grid-cols-3">
-              <div className="xl:col-span-1">
-                <SessionSidebar />
-              </div>
+              <div className="mt-8 grid gap-6 xl:grid-cols-3">
+                <div className="xl:col-span-1">
+                  <SessionSidebar />
+                </div>
 
-              <div className="xl:col-span-2">
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-8 shadow-sm">
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
-                    Security Monitoring Workspace
-                  </h3>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Real-time decoy listening telemetry and automated honeytoken analysis.
-                  </p>
-
-                  <div className="mt-8 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-12 text-center">
-                    <Shield className="mx-auto h-8 w-8 text-zinc-400" />
-                    <p className="mt-4 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                      Security Engine Armed
+                <div className="xl:col-span-2">
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-8 shadow-sm">
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
+                      Security Monitoring Workspace
+                    </h3>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Real-time decoy listening telemetry and automated honeytoken analysis.
                     </p>
-                    <p className="mt-1 text-[11px] text-zinc-500">
-                      All 9 honeypot listener daemons are monitoring incoming adversarial traffic.
-                    </p>
+
+                    <div className="mt-8 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 p-12 text-center">
+                      <Shield className="mx-auto h-8 w-8 text-zinc-400" />
+                      <p className="mt-4 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                        Security Engine Armed
+                      </p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        All 9 honeypot listener daemons are monitoring incoming adversarial traffic.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {/* Sessions */}
-        {activePage === "Sessions" && <SessionsView />}
+          {/* Sessions */}
+          {activePage === "Sessions" && <SessionsView />}
 
-        {/* Alerts */}
-        {activePage === "Alerts" && <Alerts />}
+          {/* Alerts */}
+          {activePage === "Alerts" && <Alerts />}
 
-        {/* Analytics */}
-        {activePage === "Analytics" && <Analytics />}
+          {/* Analytics */}
+          {activePage === "Analytics" && <Analytics />}
 
-        {/* Backend Features */}
-        {activePage === "Backend Features" && <BackendFeaturesView />}
+          {/* Backend Features */}
+          {activePage === "Backend Features" && <BackendFeaturesView />}
+        </div>
       </section>
 
       {/* Floating Circular Day / Light Toggle Button in Bottom Right Corner */}

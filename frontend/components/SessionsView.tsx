@@ -222,24 +222,31 @@ export default function SessionsView() {
 
           <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/60">
             {loading ? (
-              <div className="py-16 text-center text-xs text-zinc-500">
-                Loading captured sessions...
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="space-y-2 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+                    <div className="h-3.5 w-32 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="h-2.5 w-44 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                    <div className="h-2 w-24 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                  </div>
+                ))}
               </div>
             ) : filteredSessions.length === 0 ? (
               <div className="py-16 text-center text-xs text-zinc-500">
                 No matching attacker sessions found.
               </div>
             ) : (
-              filteredSessions.map((session) => {
+              filteredSessions.map((session, idx) => {
                 const isSelected = selectedSession?.id === session.id;
                 return (
                   <button
                     key={session.id}
+                    style={{ animationDelay: `${Math.min(idx * 35, 280)}ms` }}
                     onClick={() => setSelectedSession(session)}
-                    className={`w-full p-4 text-left transition flex items-center justify-between gap-3 ${
+                    className={`animate-item-fade w-full p-4 text-left transition-all duration-200 flex items-center justify-between gap-3 ${
                       isSelected
-                        ? "bg-zinc-100 dark:bg-zinc-900 border-l-2 border-l-zinc-900 dark:border-l-white"
-                        : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
+                        ? "bg-zinc-100 dark:bg-zinc-900 border-l-2 border-l-cyan-500 font-semibold"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-900/50 hover:pl-5"
                     }`}
                   >
                     <div className="space-y-1.5 min-w-0 flex-1">

@@ -8,6 +8,7 @@ import {
   Bell,
   BarChart3,
   Shield,
+  Loader2,
 } from "lucide-react";
 
 type HeaderProps = {
@@ -15,11 +16,13 @@ type HeaderProps = {
   setActivePage: (page: string) => void;
   isDark: boolean;
   setIsDark: (dark: boolean) => void;
+  onConnectionChange?: (connected: boolean) => void;
 };
 
 export default function Header({
   activePage,
   setActivePage,
+  onConnectionChange,
 }: HeaderProps) {
   const [connected, setConnected] = useState(false);
 
@@ -43,15 +46,20 @@ export default function Header({
     let reconnectTimeout: NodeJS.Timeout;
     let isSubscribed = true;
 
+    const updateConnection = (status: boolean) => {
+      if (isSubscribed) {
+        setConnected(status);
+        onConnectionChange?.(status);
+      }
+    };
+
     const checkHttpHealth = async () => {
       try {
         const res = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
-        if (isSubscribed) {
-          setConnected(res.ok);
-        }
+        updateConnection(res.ok);
       } catch {
-        if (isSubscribed && (!socket || socket.readyState !== WebSocket.OPEN)) {
-          setConnected(false);
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          updateConnection(false);
         }
       }
     };
@@ -61,18 +69,16 @@ export default function Header({
       try {
         socket = new WebSocket(wsUrl);
         socket.onopen = () => {
-          if (isSubscribed) setConnected(true);
+          updateConnection(true);
         };
         socket.onclose = () => {
+          checkHttpHealth();
           if (isSubscribed) {
-            checkHttpHealth();
             reconnectTimeout = setTimeout(connectWebSocket, 2000);
           }
         };
         socket.onerror = () => {
-          if (isSubscribed) {
-            checkHttpHealth();
-          }
+          checkHttpHealth();
         };
       } catch {
         checkHttpHealth();
@@ -118,13 +124,13 @@ export default function Header({
               <button
                 key={item.name}
                 onClick={() => setActivePage(item.name)}
-                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 active:scale-95 ${
                   isActive
                     ? "bg-white dark:bg-zinc-800 text-cyan-600 dark:text-cyan-300 shadow-sm border border-zinc-200/80 dark:border-zinc-700/60 font-bold"
-                    : "text-zinc-700 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white"
+                    : "text-zinc-700 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-white hover:bg-white/40 dark:hover:bg-zinc-800/50"
                 }`}
               >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-cyan-600 dark:text-cyan-400" : "text-zinc-500 dark:text-zinc-400"}`} />
+                <Icon className={`h-3.5 w-3.5 transition-transform duration-200 ${isActive ? "scale-110 text-cyan-600 dark:text-cyan-400" : "text-zinc-500 dark:text-zinc-400"}`} />
                 {item.name}
               </button>
             );
@@ -136,11 +142,17 @@ export default function Header({
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
               connected
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm shadow-emerald-500/10"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                : "border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 shadow-sm shadow-cyan-500/10"
             }`}
           >
-            <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400 animate-pulse" : "bg-rose-500"}`} />
-            <span className="text-[11px] font-mono uppercase tracking-wider">{connected ? "Live" : "Offline"}</span>
+            {connected ? (
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            ) : (
+              <Loader2 className="h-2.5 w-2.5 animate-spin text-cyan-500" />
+            )}
+            <span className="text-[11px] font-mono uppercase tracking-wider">
+              {connected ? "Live" : "Waking Up"}
+            </span>
           </div>
         </div>
       </div>

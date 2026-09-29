@@ -101,25 +101,32 @@ export default function SessionSidebar({
 
       <div className="max-h-[550px] overflow-y-auto divide-y divide-zinc-200/80 dark:divide-zinc-800/60">
         {loading && sessions.length === 0 ? (
-          <div className="p-8 text-center text-xs text-zinc-600 dark:text-zinc-400">
-            Loading sessions...
+          <div className="p-4 space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50">
+                <div className="h-3.5 w-28 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                <div className="h-2.5 w-40 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                <div className="h-2 w-20 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+            ))}
           </div>
         ) : sessions.length === 0 ? (
           <div className="p-8 text-center text-xs text-zinc-600 dark:text-zinc-400">
             No attacker sessions recorded.
           </div>
         ) : (
-          sessions.map((session) => {
+          sessions.map((session, idx) => {
             const isSelected = selectedSessionId === session.id;
 
             return (
               <button
                 key={session.id}
+                style={{ animationDelay: `${idx * 40}ms` }}
                 onClick={() => onSelectSession?.(session.id)}
-                className={`w-full p-4 text-left transition ${
+                className={`animate-item-fade w-full p-4 text-left transition-all duration-200 ${
                   isSelected
                     ? "bg-cyan-500/10 dark:bg-cyan-500/10 border-l-2 border-l-cyan-500"
-                    : "hover:bg-zinc-100/70 dark:hover:bg-zinc-900/50"
+                    : "hover:bg-zinc-100/70 dark:hover:bg-zinc-900/50 hover:pl-5"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">

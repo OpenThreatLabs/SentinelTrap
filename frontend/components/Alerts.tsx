@@ -234,8 +234,17 @@ export default function Alerts() {
       {/* Alert Feed Cards */}
       <div className="space-y-3">
         {loading && alerts.length === 0 ? (
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 py-16 text-center text-sm text-zinc-600 dark:text-zinc-400 font-medium">
-            Scanning honeypot node security logs...
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white dark:bg-zinc-950 p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-24 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                  <div className="h-4 w-16 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                </div>
+                <div className="h-3.5 w-3/4 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+                <div className="h-3 w-1/2 rounded animate-skeleton bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+            ))}
           </div>
         ) : filteredAlerts.length === 0 ? (
           <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 py-16 text-center text-sm text-zinc-600 dark:text-zinc-400">
@@ -246,13 +255,14 @@ export default function Alerts() {
             </p>
           </div>
         ) : (
-          filteredAlerts.map((alert) => {
+          filteredAlerts.map((alert, idx) => {
             const severity = getSeverity(alert.event_type, alert.input_data);
 
             return (
               <div
                 key={alert.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5 transition shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700"
+                style={{ animationDelay: `${Math.min(idx * 40, 320)}ms` }}
+                className="animate-item-fade rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-5 transition-all duration-200 shadow-sm hover:border-cyan-500/40 hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2 flex-1 min-w-0">

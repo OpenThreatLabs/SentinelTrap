@@ -383,7 +383,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
           targetPhiRef.current = null;
         }
       } else if (!isDragging.current && autoRotateRef.current) {
-        phiRef.current += 0.0025;
+        phiRef.current += 0.0005;
       }
 
       globe.update({
@@ -398,7 +398,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
         const h = overlayCanvasRef.current.height;
         overlayCtx.clearRect(0, 0, w, h);
 
-        clockRef.current += 0.0028; // Gentle, elegant line traveling speed
+        clockRef.current += 0.0010; // Gentle, elegant line traveling speed
         const currentClock = clockRef.current;
 
         // Exact COBE projection mapping
@@ -655,9 +655,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
               </span>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              {adversaryTargets.length > 0
-                ? "Live attack lasers originating from captured threat countries and terminating in India"
-                : "Awaiting incoming honeypot triggers. Lasers and origin countries appear dynamically upon attacker ingress."}
+              Real-time geospatial threat telemetry and honeypot ingress trajectories.
             </p>
           </div>
         </div>
@@ -707,14 +705,6 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
             );
           })}
         </div>
-      ) : hasLoaded ? (
-        <div className="my-3 px-3 py-2 rounded-lg bg-zinc-900/40 border border-zinc-800/60 flex items-center justify-between text-xs font-mono text-zinc-400">
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            Decoy listeners listening on ports :22, :80, :3306, :6379, :23, :21... Zero active breaches captured yet.
-          </span>
-          <span className="text-[10px] text-zinc-500">Run a probe or click &quot;Simulate Ingress Attack&quot; on Dashboard</span>
-        </div>
       ) : null}
 
       {/* Main Visualizer Stage */}
@@ -724,29 +714,26 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
           ref={containerRef}
           className="relative w-full max-w-[600px] aspect-square flex items-center justify-center cursor-grab active:cursor-grabbing mx-auto"
           onPointerDown={(e) => {
-            pointerInteracting.current = e.clientX - pointerInteractionMovement.current;
+            pointerInteracting.current = e.clientX;
             isDragging.current = true;
+            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           }}
-          onPointerUp={() => {
+          onPointerUp={(e) => {
+            pointerInteracting.current = null;
+            isDragging.current = false;
+            try {
+              (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+            } catch {}
+          }}
+          onPointerCancel={() => {
             pointerInteracting.current = null;
             isDragging.current = false;
           }}
-          onPointerOut={() => {
-            pointerInteracting.current = null;
-            isDragging.current = false;
-          }}
-          onMouseMove={(e) => {
-            if (pointerInteracting.current !== null) {
-              const delta = e.clientX - pointerInteracting.current;
-              pointerInteractionMovement.current = delta;
-              phiRef.current = delta * 0.005;
-            }
-          }}
-          onTouchMove={(e) => {
-            if (pointerInteracting.current !== null && e.touches[0]) {
-              const delta = e.touches[0].clientX - pointerInteracting.current;
-              pointerInteractionMovement.current = delta;
-              phiRef.current = delta * 0.005;
+          onPointerMove={(e) => {
+            if (pointerInteracting.current !== null && isDragging.current) {
+              const deltaX = e.clientX - pointerInteracting.current;
+              pointerInteracting.current = e.clientX;
+              phiRef.current += deltaX * 0.005;
             }
           }}
         >
@@ -770,9 +757,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
           {/* Center drag hint & status overlay */}
           <div className="absolute bottom-2 inset-x-0 text-center pointer-events-none z-20">
             <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400 dark:text-zinc-500 bg-zinc-100/80 dark:bg-[#0c1322]/80 px-3 py-1 rounded-full border border-zinc-200 dark:border-blue-900/30 backdrop-blur-sm">
-              {adversaryTargets.length > 0
-                ? "Drag to rotate 360° • Click pills to focus origin"
-                : "Drag to rotate 360° • Standing by for honeypot traps"}
+              Drag to rotate 360°
             </span>
           </div>
         </div>
