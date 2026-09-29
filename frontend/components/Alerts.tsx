@@ -81,8 +81,12 @@ export default function Alerts() {
     if (
       eventType.includes("breach") ||
       eventType.includes("exploit") ||
+      eventType.includes("canary") ||
+      eventType.includes("tripwire") ||
       input.includes("sudo") ||
       input.includes("/etc/shadow") ||
+      input.includes("canary") ||
+      input.includes("credentials") ||
       input.includes("rm -rf") ||
       input.includes("wget")
     ) {

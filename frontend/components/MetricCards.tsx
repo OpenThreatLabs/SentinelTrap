@@ -12,6 +12,8 @@ import {
 type Stats = {
   total_sessions: number;
   total_events: number;
+  canary_tripped?: number;
+  deception_tripped?: number;
   top_usernames: {
     name: string;
     count: number;
@@ -26,6 +28,8 @@ export default function MetricCards() {
   const [stats, setStats] = useState<Stats>({
     total_sessions: 0,
     total_events: 0,
+    canary_tripped: 0,
+    deception_tripped: 0,
     top_usernames: [],
     top_commands: [],
   });
@@ -97,7 +101,7 @@ export default function MetricCards() {
     },
     {
       title: "Deception & Canary Probes",
-      value: stats.total_events > 0 ? Math.min(stats.total_events, 4) : 0,
+      value: (stats.canary_tripped ?? 0) + (stats.deception_tripped ?? 0),
       subtitle: "Honeytokens & Traps hit",
       icon: ShieldAlert,
       numberColor: "text-rose-500 dark:text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.3)]",

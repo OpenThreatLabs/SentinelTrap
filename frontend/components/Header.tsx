@@ -8,10 +8,6 @@ import {
   Bell,
   BarChart3,
   Shield,
-  Sun,
-  Moon,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 
 type HeaderProps = {
@@ -24,8 +20,6 @@ type HeaderProps = {
 export default function Header({
   activePage,
   setActivePage,
-  isDark,
-  setIsDark,
 }: HeaderProps) {
   const [connected, setConnected] = useState(false);
 
@@ -47,7 +41,6 @@ export default function Header({
     let reconnectTimeout: NodeJS.Timeout;
     let isSubscribed = true;
 
-    // Fast Dual-Check: WebSocket + HTTP polling fallback
     const checkHttpHealth = async () => {
       try {
         const res = await fetch(`${apiBase}/api/stats/overview`, { cache: "no-store" });
@@ -97,22 +90,9 @@ export default function Header({
     };
   }, []);
 
-  const toggleTheme = () => {
-    const newMode = !isDark;
-    setIsDark(newMode);
-    if (newMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
-
   return (
     <header className="sticky top-0 z-40 w-full bg-zinc-50/80 dark:bg-black/80 px-6 py-4 backdrop-blur-md transition-colors duration-200">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
-        {/* Brand Logo */}
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-400 via-indigo-500 to-fuchsia-500 text-black font-bold shadow-lg shadow-cyan-500/25">
             <ShieldCheck className="h-5 w-5 text-white" />
@@ -127,7 +107,6 @@ export default function Header({
           </div>
         </div>
 
-        {/* Navigation Tabs */}
         <nav className="flex items-center gap-1 rounded-xl border border-zinc-300/80 dark:border-zinc-800/80 bg-zinc-200/60 dark:bg-zinc-900/90 p-1">
           {navigation.map((item) => {
             const Icon = item.icon;
@@ -150,9 +129,7 @@ export default function Header({
           })}
         </nav>
 
-        {/* Right Controls: Live Pill */}
-        <div className="flex items-center gap-3">
-          {/* Live Node Pill */}
+        <div className="flex items-center gap-2.5">
           <div
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
               connected

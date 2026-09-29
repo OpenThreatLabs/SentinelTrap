@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Shield,
   FileText,
@@ -22,12 +22,12 @@ export default function BackendFeaturesView() {
   const [copiedRule, setCopiedRule] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [autoSimActive, setAutoSimActive] = useState(false);
+  const [togglingSim, setTogglingSim] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [clearSuccess, setClearSuccess] = useState<string | null>(null);
 
-  // Adaptive Server Persona State (Anti-Fingerprinting)
   const [activePersona, setActivePersona] = useState<string>("all_mesh");
   const [switchingPersona, setSwitchingPersona] = useState(false);
 
@@ -116,6 +116,51 @@ export default function BackendFeaturesView() {
       alert("Error reaching backend.");
     } finally {
       setClearing(false);
+    }
+  };
+
+  useEffect(() => {
+    let isSubscribed = true;
+    const fetchAutoSimStatus = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/simulation/auto/status`, { cache: "no-store" });
+        if (res.ok && isSubscribed) {
+          const data = await res.json();
+          setAutoSimActive(Boolean(data.active));
+        }
+      } catch {}
+    };
+
+    fetchAutoSimStatus();
+    const interval = setInterval(fetchAutoSimStatus, 2500);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [apiBase]);
+
+  const handleToggleAutoSim = async () => {
+    setTogglingSim(true);
+    try {
+      const endpoint = autoSimActive
+        ? `${apiBase}/api/simulation/auto/stop`
+        : `${apiBase}/api/simulation/auto/start?interval=3.5`;
+      const res = await fetch(endpoint, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setAutoSimActive(Boolean(data.active));
+        setClearSuccess(
+          data.active
+            ? "Automated attack generator active: streaming randomized attacks to honeypots."
+            : "Automated attack generator stopped."
+        );
+        setTimeout(() => setClearSuccess(null), 5000);
+      }
+    } catch {
+      alert("Error toggling automated attack generator.");
+    } finally {
+      setTogglingSim(false);
     }
   };
 
@@ -253,17 +298,41 @@ export default function BackendFeaturesView() {
             <button
               onClick={handleSimulateAttack}
               disabled={simulating || clearing}
-              className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition active:scale-95 disabled:opacity-50 shadow-sm hover:shadow-amber-500/10"
+              className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition active:scale-95 disabled:opacity-50 shadow-sm hover:shadow-amber-500/10 cursor-pointer"
               title={`Simulates a live adversarial attack against the active '${personas[activePersona]?.name.split(" (")[0]}' persona architecture.`}
             >
               <Zap className={`h-4 w-4 text-amber-500 ${simulating ? "animate-bounce" : ""}`} />
-              {simulating ? "Simulating Live Ingress..." : `Simulate Attack (${personas[activePersona]?.name.split(" (")[0] || "Active"})`}
+              {simulating ? "Simulating Live Ingress..." : `Simulate Ingress (${personas[activePersona]?.name.split(" (")[0] || "Active"})`}
+            </button>
+
+            <button
+              onClick={handleToggleAutoSim}
+              disabled={togglingSim || clearing || simulating}
+              className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-bold transition active:scale-95 disabled:opacity-50 shadow-sm cursor-pointer ${
+                autoSimActive
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-500 dark:text-amber-400 shadow-amber-500/20"
+                  : "border-cyan-500/40 bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/20 shadow-cyan-500/10"
+              }`}
+              title={
+                autoSimActive
+                  ? "Automated attack simulation active: continuously streams realistic attacks."
+                  : "Start automated continuous attack stream for live demo."
+              }
+            >
+              <Zap className={`h-4 w-4 ${autoSimActive ? "animate-bounce text-amber-500 fill-amber-500" : "text-cyan-500"}`} />
+              <span>{autoSimActive ? "Auto-Attack ACTIVE" : "Start Auto-Attack"}</span>
+              {autoSimActive && (
+                <span className="relative flex h-2 w-2 ml-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+              )}
             </button>
 
             <button
               onClick={() => setIsConfirmOpen(true)}
-              disabled={clearing || simulating}
-              className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition active:scale-95 disabled:opacity-50"
+              disabled={clearing || simulating || togglingSim}
+              className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <Trash2 className="h-4 w-4" />
               Clear Captured Data
