@@ -7,7 +7,7 @@ import paramiko
 import requests
 from shell import VirtualShellSession
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 # Generate host key programmatically if it doesn't exist
 HOST_KEY_FILE = "test_rsa.key"
@@ -23,6 +23,7 @@ class HoneypotSSHServer(paramiko.ServerInterface):
         self.client_ip = client_ip
         self.session_id = None
         self.username = None
+        self.exec_command = None
 
     def check_channel_request(self, kind, chanid):
         if kind == 'session':
@@ -40,7 +41,8 @@ class HoneypotSSHServer(paramiko.ServerInterface):
                 json={
                     "ip_address": self.client_ip,
                     "username_attempted": username,
-                    "password_attempted": password
+                    "password_attempted": password,
+                    "protocol": "SSH"
                 },
                 timeout=3
             )
@@ -58,10 +60,18 @@ class HoneypotSSHServer(paramiko.ServerInterface):
         self.event.set()
         return True
 
+    def check_channel_exec_request(self, channel, command):
+        self.exec_command = command.decode('utf-8', errors='ignore')
+        self.event.set()
+        return True
+
     def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
         return True
 
 def handle_connection(client_socket, client_ip):
+    server = None
+    chan = None
+    transport = None
     try:
         transport = paramiko.Transport(client_socket)
         transport.add_server_key(HOST_KEY)
@@ -73,20 +83,31 @@ def handle_connection(client_socket, client_ip):
             print("[-] SSH negotiation failed.")
             return
 
-        # Wait for shell request
+        # Wait for channel open
         chan = transport.accept(20)
         if chan is None:
             print("[-] No channel opened.")
             return
         
+        # Wait for shell or exec request
         server.event.wait(10)
         if not server.event.is_set():
-            print("[-] Client did not request a shell.")
+            print("[-] Client did not request a shell or exec.")
             return
 
         # Initialize integrated virtual shell session
         shell = VirtualShellSession(server.session_id, BACKEND_URL)
-        
+
+        if server.exec_command is not None:
+            # Handle non-interactive SSH exec request
+            response = shell.execute_command(server.exec_command)
+            if response:
+                formatted_response = response.replace('\n', '\r\n')
+                chan.send(formatted_response)
+            chan.send_exit_status(0)
+            return
+
+        # Interactive shell session
         chan.send("\r\nWelcome to Ubuntu 22.04.1 LTS (GNU/Linux 5.15.0-52-generic x86_64)\r\n\r\n")
         chan.send(" * Documentation:  https://help.ubuntu.com\r\n")
         chan.send(" * Management:     https://landscape.canonical.com\r\n")
@@ -95,50 +116,81 @@ def handle_connection(client_socket, client_ip):
         chan.send(shell.get_prompt())
         
         buf = ""
+        escape_buf = ""
         while True:
-            char = chan.recv(1024).decode('utf-8', errors='ignore')
-            if not char:
+            chunk = chan.recv(1024).decode('utf-8', errors='ignore')
+            if not chunk:
                 break
                 
-            # Handle keypresses for terminal emulation
-            if char in ['\r', '\n']:
-                chan.send('\r\n')
-                response = shell.execute_command(buf)
-                if response == "exit":
-                    break
-                elif response:
-                    formatted_response = response.replace('\n', '\r\n')
-                    chan.send(formatted_response)
-                
-                buf = ""
-                chan.send(shell.get_prompt())
-            elif char == '\x7f': # Backspace
-                if len(buf) > 0:
-                    buf = buf[:-1]
-                    chan.send('\b \b')
-            elif char == '\x03': # Ctrl+C
-                chan.send('^C\r\n')
-                buf = ""
-                chan.send(shell.get_prompt())
-            elif char == '\x04': # Ctrl+D
-                break
-            else:
-                buf += char
-                chan.send(char)
+            for char in chunk:
+                # Absorb complete ANSI escape sequences (e.g. arrow keys \x1b[A, \x1b[B, \x1b[C, \x1b[D)
+                if escape_buf:
+                    escape_buf += char
+                    if escape_buf.startswith("\x1b["):
+                        if len(escape_buf) > 2 and (0x40 <= ord(char) <= 0x7E or len(escape_buf) > 16):
+                            escape_buf = ""
+                    elif escape_buf.startswith("\x1bO"):
+                        if len(escape_buf) >= 3:
+                            escape_buf = ""
+                    else:
+                        if len(escape_buf) >= 2:
+                            escape_buf = ""
+                    continue
 
-        # Notify backend that session has ended
-        if server.session_id:
-            try:
-                requests.patch(f"{BACKEND_URL}/api/sessions/{server.session_id}", timeout=2)
-            except Exception:
-                pass
+                if char == '\x1b':
+                    escape_buf = "\x1b"
+                    continue
 
-        chan.close()
+                # Handle keypresses for terminal emulation
+                if char in ['\r', '\n']:
+                    chan.send('\r\n')
+                    response = shell.execute_command(buf)
+                    if response == "exit":
+                        return
+                    elif response:
+                        formatted_response = response.replace('\n', '\r\n')
+                        chan.send(formatted_response)
+                    
+                    buf = ""
+                    chan.send(shell.get_prompt())
+                elif char in ['\x7f', '\x08', '\b']: # Backspace (DEL, BS, ^H)
+                    if len(buf) > 0:
+                        buf = buf[:-1]
+                        chan.send('\b \b')
+                elif char == '\x03': # Ctrl+C
+                    chan.send('^C\r\n')
+                    buf = ""
+                    chan.send(shell.get_prompt())
+                elif char == '\x04': # Ctrl+D
+                    return
+                elif ord(char) >= 32 or char == '\t':
+                    buf += char
+                    chan.send(char)
+
     except Exception as e:
         print(f"[-] Exception handling connection: {e}")
         traceback.print_exc()
     finally:
-        client_socket.close()
+        # Guarantee session close notification and socket cleanup
+        if server and server.session_id:
+            try:
+                requests.patch(f"{BACKEND_URL}/api/sessions/{server.session_id}", timeout=2)
+            except Exception:
+                pass
+        if chan:
+            try:
+                chan.close()
+            except Exception:
+                pass
+        if transport:
+            try:
+                transport.close()
+            except Exception:
+                pass
+        try:
+            client_socket.close()
+        except Exception:
+            pass
 
 def main():
     server_port = int(os.getenv("PORT", "2222"))

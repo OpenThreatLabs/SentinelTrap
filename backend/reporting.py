@@ -1,5 +1,6 @@
 import io
 import datetime
+from xml.sax.saxutils import escape
 from sqlalchemy.orm import Session
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -62,11 +63,20 @@ class IncidentReportGenerator:
             textColor=colors.HexColor('#334155')
         )
 
+        safe_id = escape(str(session.id or ""))
+        safe_ip = escape(str(session.ip_address or "Unknown"))
+        safe_city = escape(str(geo_intel.get('city') or "Unknown"))
+        safe_country = escape(str(geo_intel.get('country') or "Unknown"))
+        safe_isp = escape(str(geo_intel.get('isp') or "Unknown"))
+        safe_asn = escape(str(geo_intel.get('asn') or "Unknown"))
+        safe_user = escape(str(session.username_attempted or "Unknown"))
+        safe_pass = escape(str(session.password_attempted or "N/A"))
+
         story.append(Paragraph("🛡️ SentinelTrap Incident Forensics Report", title_style))
-        story.append(Paragraph(f"<b>Session Reference ID:</b> {session.id}", body_style))
-        story.append(Paragraph(f"<b>Attacker IP Address:</b> {session.ip_address} ({geo_intel.get('city')}, {geo_intel.get('country')})", body_style))
-        story.append(Paragraph(f"<b>ISP / ASN Metadata:</b> {geo_intel.get('isp')} | {geo_intel.get('asn')}", body_style))
-        story.append(Paragraph(f"<b>Target Credentials Tried:</b> {session.username_attempted} / {session.password_attempted or 'N/A'}", body_style))
+        story.append(Paragraph(f"<b>Session Reference ID:</b> {safe_id}", body_style))
+        story.append(Paragraph(f"<b>Attacker IP Address:</b> {safe_ip} ({safe_city}, {safe_country})", body_style))
+        story.append(Paragraph(f"<b>ISP / ASN Metadata:</b> {safe_isp} | {safe_asn}", body_style))
+        story.append(Paragraph(f"<b>Target Credentials Tried:</b> {safe_user} / {safe_pass}", body_style))
         story.append(Paragraph(f"<b>Session Started:</b> {session.started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
         if session.ended_at:
             story.append(Paragraph(f"<b>Session Terminated:</b> {session.ended_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
@@ -76,9 +86,10 @@ class IncidentReportGenerator:
         # Threat Classification & Risk Box
         story.append(Paragraph("Threat Risk Evaluation", h2_style))
         story.append(Paragraph(f"<b>Calculated Risk Score:</b> <font color='#e11d48'><b>{risk_score} / 100</b></font>", body_style))
-        story.append(Paragraph(f"<b>Threat Classification:</b> <b>{classification}</b>", body_style))
+        story.append(Paragraph(f"<b>Threat Classification:</b> <b>{escape(str(classification))}</b>", body_style))
         if indicators:
-            story.append(Paragraph(f"<b>Threat Indicators:</b> {', '.join(indicators)}", body_style))
+            safe_ind = [escape(str(i)) for i in indicators]
+            story.append(Paragraph(f"<b>Threat Indicators:</b> {', '.join(safe_ind)}", body_style))
 
         story.append(Spacer(1, 15))
 

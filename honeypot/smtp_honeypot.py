@@ -79,7 +79,8 @@ class SMTPHoneypotServer:
                             json={
                                 "ip_address": client_ip,
                                 "username_attempted": f"smtp_{sender[:30]}",
-                                "password_attempted": "smtp_relay"
+                                "password_attempted": "smtp_relay",
+                                "protocol": "SMTP"
                             },
                             timeout=2
                         )

@@ -39,11 +39,22 @@ private_keys/
 credentials/
 *.pem
 *.key
+*.pub
 *.crt
 *.cer
 *.p12
 *.pfx
 *.jks
+id_rsa
+id_rsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
+id_dsa
+id_dsa.pub
+test_rsa.key
+test_rsa.key.pub
 
 ############################
 # Databases
@@ -53,6 +64,17 @@ credentials/
 *.sqlite
 *.sqlite3
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-journal
+*.db-wal
+*.db-shm
+*-journal
+*-wal
+*-shm
 *.sql
 
 ############################
@@ -113,18 +135,23 @@ tmp/
 .cache/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.hypothesis/
 .pyre/
 .pytype/
 coverage/
 htmlcov/
 
 ############################
-# Testing
+# Testing & Scratch
 ############################
 .coverage
 .coverage.*
 nosetests.xml
 pytestdebug.log
+scratch/
+*.tmp
+*.temp
 
 ############################
 # Jupyter
@@ -137,11 +164,21 @@ pytestdebug.log
 .vscode/
 .idea/
 *.iml
+*.sublime-project
+*.sublime-workspace
+.cursor/
+.gemini/
+.claude/
 
 ############################
 # OS Files
 ############################
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 desktop.ini
 
@@ -163,6 +200,8 @@ dist/
 build/
 .cache-loader/
 .parcel-cache/
+.vercel/
+next-env.d.ts
 
 ############################
 # Vite
@@ -290,6 +329,7 @@ temp/**
 !logs/.gitkeep
 !captures/.gitkeep
 !evidence/.gitkeep
+!honeypot/evidence/.gitkeep
 !generated_reports/.gitkeep
 !uploads/.gitkeep
 !downloads/.gitkeep

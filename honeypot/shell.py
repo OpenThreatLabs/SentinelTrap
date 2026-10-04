@@ -37,7 +37,13 @@ class VirtualShellSession:
             pass  # Fail gracefully if backend is unreachable
 
     def execute_command(self, raw_cmd: str) -> str:
-        cmd = raw_cmd.strip()
+        # Strip terminal control bytes (backspace, DEL, etc.) that survive
+        # raw recv() bursts before logging or shell dispatch
+        _ctrl_table = dict.fromkeys(range(0x20), None)  # strip 0x00-0x1f
+        _ctrl_table[0x7f] = None                         # strip DEL
+        # Preserve tab (0x09) for readability; strip all others
+        _ctrl_table.pop(0x09, None)
+        cmd = raw_cmd.translate(_ctrl_table).strip()
         if not cmd:
             return ""
 

@@ -4,7 +4,7 @@ import socket
 import threading
 import requests
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 SCANNER_PORT = int(os.getenv("SCANNER_PORT", "3389"))  # Decoy Remote Desktop / Service Listener
 
 class PortScannerHoneypotTrap:
@@ -32,7 +32,8 @@ class PortScannerHoneypotTrap:
                     json={
                         "ip_address": client_ip,
                         "username_attempted": f"port_scan_{self.port}",
-                        "password_attempted": "tcp_syn_probe"
+                        "password_attempted": "tcp_syn_probe",
+                        "protocol": "RDP" if self.port in (3389, SCANNER_PORT) else "SCANNER"
                     },
                     timeout=2
                 )

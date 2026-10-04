@@ -30,7 +30,6 @@ class AdaptiveDeceptionEngine:
                 "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
                 "region = us-east-1\n"
                 "output = json\n"
-                "# CANARY-TRIPWIRE [AWS_CLI_KEY]: Monitored cloud token tripped. Alert dispatched to SOC.\n"
             )
             return output, True, "canary_tripwire_aws_credentials"
 
@@ -41,10 +40,9 @@ class AdaptiveDeceptionEngine:
             output = (
                 "-----BEGIN OPENSSH PRIVATE KEY-----\n"
                 "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn\n"
-                "NhAAAAAwEAAQAAAYEAt4pM7KjQ3v8kZ9L... [HONEYTOKEN TRAPPED] ...\n"
+                "NhAAAAAwEAAQAAAYEAt4pM7KjQ3v8kZ9Lv3QW7KzM9Lq4X8V1b9C2x1Z6w\n"
                 "6Qx34p+q9JkHh398Kj2Kj4k32mK23k4j==\n"
                 "-----END OPENSSH PRIVATE KEY-----\n"
-                "# CANARY-TRIPWIRE [SSH_HOST_KEY]: Master SSH private key exfiltration attempt alerted.\n"
             )
             return output, True, "canary_tripwire_ssh_private_key"
 
@@ -53,8 +51,7 @@ class AdaptiveDeceptionEngine:
             self.decoys["canary_tripwire_triggered"] = True
             self.decoys["credentials_exposed"] = True
             output = (
-                "https://sentineltrap-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com\n"
-                "# CANARY-TRIPWIRE [GITHUB_PAT]: Scoped deployment token accessed. Alert beacon generated.\n"
+                "https://prod-deploy-bot:ghp_9kL2x0Vb8M1qR3oP4zW6Y7tJ5nE0A8cCdEfG@github.com\n"
             )
             return output, True, "canary_tripwire_github_token"
 
@@ -65,13 +62,12 @@ class AdaptiveDeceptionEngine:
             output = (
                 "{\n"
                 '  "type": "service_account",\n'
-                '  "project_id": "sentineltrap-cloud-defense",\n'
+                '  "project_id": "prod-core-infra",\n'
                 '  "private_key_id": "8f3b20c99a4e8d3170b",\n'
                 '  "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...==\\n-----END PRIVATE KEY-----\\n",\n'
-                '  "client_email": "canary-prod-agent@sentineltrap-cloud-defense.iam.gserviceaccount.com",\n'
+                '  "client_email": "svc-deploy@prod-core-infra.iam.gserviceaccount.com",\n'
                 '  "client_id": "109827346152839102948"\n'
                 "}\n"
-                "# CANARY-TRIPWIRE [GCP_IAM_KEY]: Service account credentials exfiltration detected.\n"
             )
             return output, True, "canary_tripwire_gcp_service_account"
 
@@ -88,7 +84,6 @@ class AdaptiveDeceptionEngine:
                 "define('DB_HOST', '10.0.4.18:3306');\n"
                 "define('API_SECRET', 'sec_live_99812497184912');\n"
                 "?>\n"
-                "# CANARY-TRIPWIRE [WEB_DB_SECRETS]: High-value application configuration accessed.\n"
             )
             return output, True, "canary_tripwire_web_config"
 
@@ -102,7 +97,6 @@ class AdaptiveDeceptionEngine:
                 "db_backup : B@ckup9090# [MySQL]\n"
                 "infra_vpn : Vpn#Tunnel990 [WireGuard]\n"
                 "aws_root : RootMaster#2024! [Cloud Console]\n"
-                "# CANARY-TRIPWIRE [LOCAL_CREDS]: Monitored honeytoken access detected.\n"
             )
             return output, True, "canary_tripwire_passwords_file"
 
@@ -115,7 +109,7 @@ class AdaptiveDeceptionEngine:
                 "admin:x:1000:1000:admin:/home/admin:/bin/bash\n"
                 "db_backup_user:x:1001:1001::/home/db_backup_user:/bin/bash\n"
                 "deploy_user:x:1002:1002::/home/deploy_user:/bin/bash\n"
-                "# HONEY-TRAP: Production API key stored in /etc/cloud/secrets.env\n"
+                "# Internal service accounts\n"
             )
             return output, True, "credential_harvesting"
 
@@ -125,7 +119,6 @@ class AdaptiveDeceptionEngine:
             output = (
                 "Connecting to production database cluster at 10.0.4.18:3306...\n"
                 "ERROR 1045 (28000): Access denied for user 'root'@'%' (using password: NO)\n"
-                "Warning: Automated vulnerability report dispatched to SecOps team.\n"
             )
             return output, True, "database_access_attempt"
 
@@ -137,8 +130,8 @@ class AdaptiveDeceptionEngine:
                 "Destination     Gateway         Genmask         Flags Metric Ref    Use Iface\n"
                 "0.0.0.0         192.168.1.1     0.0.0.0         UG    100    0        0 eth0\n"
                 "192.168.1.0     0.0.0.0         255.255.255.0   U     100    0        0 eth0\n"
-                "10.0.4.18       0.0.0.0         255.255.255.255 UH    100    0        0 vpn0 [Decoy Database Host]\n"
-                "10.0.4.25       0.0.0.0         255.255.255.255 UH    100    0        0 vpn0 [Decoy Auth Gateway]\n"
+                "10.0.4.18       0.0.0.0         255.255.255.255 UH    100    0        0 vpn0\n"
+                "10.0.4.25       0.0.0.0         255.255.255.255 UH    100    0        0 vpn0\n"
             )
             return output, True, "network_reconnaissance"
 

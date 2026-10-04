@@ -14,6 +14,8 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react";
+import LiveFeed from "./LiveFeed";
+import TerminalReplay from "./TerminalReplay";
 
 type Session = {
   id: string;
@@ -157,7 +159,7 @@ export default function SessionsView() {
   });
 
   const handleDownloadPdf = (sessionId: string) => {
-    window.open(`${apiBase}/api/export/pdf/${sessionId}`, "_blank");
+    window.open(`${apiBase}/api/reports/pdf/${sessionId}`, "_blank");
   };
 
   return (
@@ -427,6 +429,18 @@ export default function SessionsView() {
                   )}
                 </div>
               </div>
+
+              {/* Live Attacker Command Feed for selected session */}
+              <LiveFeed
+                sessionId={selectedSession.id}
+                className="mt-6"
+              />
+
+              {/* Terminal Session Replay for selected session */}
+              <TerminalReplay
+                sessionId={selectedSession.id}
+                className="mt-4"
+              />
             </>
           ) : (
             <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 p-16 text-center text-zinc-500 bg-white dark:bg-zinc-950">

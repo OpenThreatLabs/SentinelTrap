@@ -4,7 +4,7 @@ import socket
 import threading
 import requests
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 FTP_PORT = int(os.getenv("FTP_PORT", "2121"))
 
 class FTPHoneypotServer:
@@ -24,6 +24,7 @@ class FTPHoneypotServer:
         session_id = None
         username = "anonymous"
         password = ""
+        pasv_sock = None
 
         try:
             # Banner greeting
@@ -55,7 +56,8 @@ class FTPHoneypotServer:
                             json={
                                 "ip_address": client_ip,
                                 "username_attempted": f"ftp_{username}",
-                                "password_attempted": password
+                                "password_attempted": password,
+                                "protocol": "FTP"
                             },
                             timeout=2
                         )
@@ -86,15 +88,103 @@ class FTPHoneypotServer:
                         client_socket.sendall(b'257 "/home/ftp_share" is current directory.\r\n')
                     elif cmd == "TYPE":
                         client_socket.sendall(b"200 Switching to Binary mode.\r\n")
-                    elif cmd in ["PORT", "PASV"]:
-                        client_socket.sendall(b"227 Entering Passive Mode (127,0,0,1,8,8).\r\n")
+                    elif cmd == "PASV":
+                        if pasv_sock:
+                            try:
+                                pasv_sock.close()
+                            except Exception:
+                                pass
+                        pasv_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        pasv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        pasv_sock.bind((self.host, 0))
+                        pasv_sock.listen(1)
+                        pasv_port = pasv_sock.getsockname()[1]
+
+                        # Format passive address response
+                        local_ip = self.host
+                        if local_ip == "0.0.0.0":
+                            try:
+                                local_ip = client_socket.getsockname()[0]
+                            except Exception:
+                                local_ip = "127.0.0.1"
+                        if local_ip in ("0.0.0.0", "::", ""):
+                            local_ip = "127.0.0.1"
+
+                        h_parts = local_ip.split(".")
+                        p1 = pasv_port // 256
+                        p2 = pasv_port % 256
+                        pasv_resp = f"227 Entering Passive Mode ({','.join(h_parts)},{p1},{p2}).\r\n"
+                        client_socket.sendall(pasv_resp.encode("utf-8"))
+
+                    elif cmd == "PORT":
+                        client_socket.sendall(b"200 PORT command successful.\r\n")
+
                     elif cmd == "LIST":
                         client_socket.sendall(b"150 Here comes the directory listing.\r\n")
+                        if pasv_sock:
+                            try:
+                                pasv_sock.settimeout(3.0)
+                                data_conn, _ = pasv_sock.accept()
+                                listing = (
+                                    "drwxr-xr-x    2 1000     1000         4096 Oct 03 12:00 backups\r\n"
+                                    "-rw-r--r--    1 1000     1000         1024 Oct 03 12:00 config.json\r\n"
+                                    "-rw-r--r--    1 1000     1000          512 Oct 03 12:00 notes.txt\r\n"
+                                )
+                                data_conn.sendall(listing.encode("utf-8"))
+                                data_conn.close()
+                            except Exception as e:
+                                print(f"[-] FTP LIST data transfer error: {e}")
+                            finally:
+                                try:
+                                    pasv_sock.close()
+                                except Exception:
+                                    pass
+                                pasv_sock = None
                         client_socket.sendall(b"226 Directory send OK.\r\n")
+
                     elif cmd == "STOR":
-                        client_socket.sendall(b"150 Ok to send data.\r\n226 Transfer complete. Payload captured.\r\n")
+                        client_socket.sendall(b"150 Ok to send data.\r\n")
+                        if pasv_sock:
+                            try:
+                                pasv_sock.settimeout(3.0)
+                                data_conn, _ = pasv_sock.accept()
+                                while True:
+                                    chunk = data_conn.recv(8192)
+                                    if not chunk:
+                                        break
+                                data_conn.close()
+                            except Exception as e:
+                                print(f"[-] FTP STOR data transfer error: {e}")
+                            finally:
+                                try:
+                                    pasv_sock.close()
+                                except Exception:
+                                    pass
+                                pasv_sock = None
+                        client_socket.sendall(b"226 Transfer complete.\r\n")
+
                     elif cmd == "RETR":
-                        client_socket.sendall(b"550 Failed to open file: Access Denied.\r\n")
+                        client_socket.sendall(b"150 Opening BINARY mode data connection.\r\n")
+                        if pasv_sock:
+                            try:
+                                pasv_sock.settimeout(3.0)
+                                data_conn, _ = pasv_sock.accept()
+                                if "config" in arg.lower():
+                                    file_bytes = b'{"database": "10.0.4.18", "environment": "production"}\n'
+                                else:
+                                    file_bytes = b"System maintenance notice: do not store unencrypted credentials.\n"
+                                data_conn.sendall(file_bytes)
+                                data_conn.close()
+                            except Exception as e:
+                                print(f"[-] FTP RETR data transfer error: {e}")
+                            finally:
+                                try:
+                                    pasv_sock.close()
+                                except Exception:
+                                    pass
+                                pasv_sock = None
+                        client_socket.sendall(b"226 Transfer complete.\r\n")
+
                     else:
                         client_socket.sendall(b"200 Command OK.\r\n")
 
@@ -107,6 +197,11 @@ class FTPHoneypotServer:
         except Exception as e:
             print(f"[-] FTP Client error {client_ip}: {e}")
         finally:
+            if pasv_sock:
+                try:
+                    pasv_sock.close()
+                except Exception:
+                    pass
             if session_id:
                 try:
                     requests.patch(f"{BACKEND_URL}/api/sessions/{session_id}", timeout=2)

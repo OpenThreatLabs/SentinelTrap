@@ -2,11 +2,11 @@ import os
 import sys
 import json
 import urllib.parse
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import requests
 from deception import AdaptiveDeceptionEngine
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 WEB_TRAP_PORT = int(os.getenv("WEB_TRAP_PORT", "8080"))
 
 deception_engine = AdaptiveDeceptionEngine()
@@ -29,7 +29,8 @@ class WebTrapHandler(BaseHTTPRequestHandler):
                 json={
                     "ip_address": ip,
                     "username_attempted": f"web_{method}",
-                    "password_attempted": path[:50]
+                    "password_attempted": path[:50],
+                    "protocol": "HTTP"
                 },
                 timeout=2
             )
@@ -103,7 +104,7 @@ class WebTrapHandler(BaseHTTPRequestHandler):
         self.send_response(401)
         self.send_header("Content-Type", "text/html")
         self.end_headers()
-        self.wfile.write(b"<html><body><h3>401 Unauthorized: Credentials logged for security review.</h3></body></html>")
+        self.wfile.write(b"<html><body><h3>401 Unauthorized: Invalid username or password.</h3></body></html>")
 
         if session_id:
             try:
@@ -113,7 +114,7 @@ class WebTrapHandler(BaseHTTPRequestHandler):
 
 def main():
     print(f"[*] HTTP Web Trap Honeypot listening on port {WEB_TRAP_PORT}...")
-    server = HTTPServer(("0.0.0.0", WEB_TRAP_PORT), WebTrapHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", WEB_TRAP_PORT), WebTrapHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

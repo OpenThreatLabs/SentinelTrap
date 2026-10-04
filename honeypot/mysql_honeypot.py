@@ -58,7 +58,8 @@ class MySQLHoneypotServer:
                     json={
                         "ip_address": client_ip,
                         "username_attempted": f"mysql_{username}",
-                        "password_attempted": "mysql_probe"
+                        "password_attempted": "mysql_probe",
+                        "protocol": "MySQL"
                     },
                     timeout=2
                 )

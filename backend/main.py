@@ -9,7 +9,7 @@ import csv
 import datetime
 import io
 import json
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -77,6 +77,7 @@ async def create_session(payload: schemas.SessionCreate, db: Session = Depends(d
 
     session = models.SessionModel(
         ip_address=ip,
+        protocol=payload.protocol or "SSH",
         country=geo_intel.get("country", "Unknown"),
         city=geo_intel.get("city", "Unknown"),
         latitude=geo_intel.get("latitude", 0.0),
@@ -95,6 +96,7 @@ async def create_session(payload: schemas.SessionCreate, db: Session = Depends(d
         "session": {
             "id": session.id,
             "ip_address": session.ip_address,
+            "protocol": session.protocol,
             "country": session.country,
             "city": session.city,
             "username_attempted": session.username_attempted,
@@ -122,6 +124,7 @@ async def end_session(session_id: str, db: Session = Depends(database.get_db)):
 async def create_event(session_id: str, payload: schemas.EventCreate, db: Session = Depends(database.get_db)):
     event = models.EventModel(
         session_id=session_id,
+        protocol=payload.protocol or "SSH",
         event_type=payload.event_type,
         input_data=payload.input_data,
         output_data=payload.output_data,
@@ -330,12 +333,26 @@ def get_stats_overview(db: Session = Depends(database.get_db)):
         "deception_tripped": deception_tripped,
     }
 
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
+
 @app.delete("/api/data/clear")
-async def clear_all_captured_data(db: Session = Depends(database.get_db)):
+async def clear_all_captured_data(
+    request: Request,
+    x_admin_key: str = Header(None, alias="X-Admin-Key"),
+    key: str = Query(None),
+    db: Session = Depends(database.get_db)
+):
     """
     Clears all captured attacker sessions, telemetry events, and triggered decoys.
     Resets the SOC dashboard to a clean zero state and notifies all live WebSockets.
+    Enforces authentication if ADMIN_API_KEY is configured in the environment.
     """
+    if ADMIN_API_KEY:
+        auth_header = request.headers.get("authorization", "")
+        bearer_token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else ""
+        provided = x_admin_key or key or bearer_token
+        if provided != ADMIN_API_KEY:
+            raise HTTPException(status_code=401, detail="Unauthorized: Valid Admin API Key required to clear telemetry.")
     try:
         deleted_events = db.query(models.EventModel).delete()
         deleted_sessions = db.query(models.SessionModel).delete()
@@ -554,8 +571,11 @@ async def auto_attack_traffic_loop():
     global auto_sim_active
     while auto_sim_active:
         try:
-            with database.SessionLocal() as db:
+            db = database.SessionLocal()
+            try:
                 await execute_simulated_attack(db=db)
+            finally:
+                db.close()
         except Exception:
             pass
         await asyncio.sleep(auto_sim_interval_seconds)

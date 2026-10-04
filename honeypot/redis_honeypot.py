@@ -31,7 +31,8 @@ class RedisHoneypotServer:
                 json={
                     "ip_address": client_ip,
                     "username_attempted": "redis_unauth",
-                    "password_attempted": "redis_probe"
+                    "password_attempted": "redis_probe",
+                    "protocol": "Redis"
                 },
                 timeout=2
             )

@@ -8,6 +8,7 @@ class SessionCreate(BaseModel):
     ip_address: str = Field(default="127.0.0.1", description="IP address of the attacker")
     username_attempted: Optional[str] = Field(default="root", description="Target username tried during SSH auth")
     password_attempted: Optional[str] = Field(default="", description="Password tried during SSH auth")
+    protocol: Optional[str] = Field(default="SSH", description="Honeypot protocol that captured this session")
 
 class SessionResponse(BaseModel):
     id: str
@@ -30,6 +31,7 @@ class EventCreate(BaseModel):
     event_type: str = Field(default="command_execution", description="Type of honeypot event")
     input_data: Optional[str] = Field(default="", description="Raw command entered by attacker")
     output_data: Optional[str] = Field(default="", description="Response or deception output generated")
+    protocol: Optional[str] = Field(default="SSH", description="Protocol associated with this event")
 
 class EventResponse(BaseModel):
     id: int

@@ -43,7 +43,8 @@ class TelnetHoneypotServer:
                     json={
                         "ip_address": client_ip,
                         "username_attempted": username,
-                        "password_attempted": password
+                        "password_attempted": password,
+                        "protocol": "Telnet"
                     },
                     timeout=3
                 )

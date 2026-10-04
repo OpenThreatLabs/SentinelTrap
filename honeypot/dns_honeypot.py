@@ -74,7 +74,8 @@ class DNSHoneypotServer:
                         json={
                             "ip_address": client_ip,
                             "username_attempted": "dns_query",
-                            "password_attempted": qname[:50]
+                            "password_attempted": qname[:50],
+                            "protocol": "DNS"
                         },
                         timeout=2
                     )
