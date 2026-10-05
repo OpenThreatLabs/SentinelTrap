@@ -12,6 +12,7 @@ import {
   ChevronRight,
   RefreshCw,
 } from "lucide-react";
+import { formatLocalTime } from "../lib/time";
 
 type Session = {
   id: string;
@@ -153,7 +154,7 @@ export default function SessionSidebar({
                         User: <strong className="text-zinc-950 dark:text-white font-mono">{session.username_attempted}</strong>
                       </span>
                       <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-                        {new Date(session.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatLocalTime(session.started_at)}
                       </span>
                     </div>
                   </div>

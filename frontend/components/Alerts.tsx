@@ -11,6 +11,7 @@ import {
   Filter,
   RefreshCw,
 } from "lucide-react";
+import { formatLocalDateTime } from "../lib/time";
 
 type AlertItem = {
   id: string;
@@ -298,7 +299,7 @@ export default function Alerts() {
 
                     <div className="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400 font-mono font-medium">
                       <Clock className="h-3 w-3 text-zinc-500" />
-                      <span>{new Date(alert.timestamp).toLocaleString()}</span>
+                      <span>{formatLocalDateTime(alert.timestamp)}</span>
                       <span>•</span>
                       <span className="text-[10px]">Session {alert.session_id.slice(0, 8)}…</span>
                     </div>

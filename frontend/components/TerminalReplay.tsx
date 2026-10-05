@@ -10,6 +10,7 @@ import {
   simulateShellOutput,
   type HoneypotEvent,
 } from "../lib/honeypot-events";
+import { formatClock, parseUtcDate } from "../lib/time";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,18 +43,6 @@ const MAX_INTER_EVENT_DELAY_MS = 2000; // cap silence between events so idle gap
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatClock(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString(undefined, {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return "--:--:--";
-  }
-}
 
 /**
  * Turns raw backend events into renderable terminal lines: a command line
@@ -172,8 +161,8 @@ function computeDelays(lines: ReplayLine[]): number[] {
       delays.push(0);
       continue;
     }
-    const prev = new Date(lines[i - 1].timestamp).getTime();
-    const cur = new Date(lines[i].timestamp).getTime();
+    const prev = parseUtcDate(lines[i - 1].timestamp)?.getTime() ?? 0;
+    const cur = parseUtcDate(lines[i].timestamp)?.getTime() ?? 0;
     const raw = Number.isFinite(prev) && Number.isFinite(cur) ? cur - prev : 250;
     // Synthesized output lines share their command's timestamp — keep those instant.
     delays.push(Math.max(0, Math.min(raw, MAX_INTER_EVENT_DELAY_MS)));

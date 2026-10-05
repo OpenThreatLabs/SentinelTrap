@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import LiveFeed from "./LiveFeed";
 import TerminalReplay from "./TerminalReplay";
+import { formatLocalTime, formatEventTime } from "../lib/time";
 
 type Session = {
   id: string;
@@ -280,10 +281,7 @@ export default function SessionsView() {
                           User: <strong className="text-zinc-900 dark:text-white font-mono">{session.username_attempted}</strong>
                         </span>
                         <span className="text-[10px] text-zinc-400 font-mono">
-                          {new Date(session.started_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatLocalTime(session.started_at)}
                         </span>
                       </div>
                     </div>
@@ -346,10 +344,7 @@ export default function SessionsView() {
                   <div className="rounded-lg bg-zinc-100/70 dark:bg-zinc-900/80 p-3 border border-zinc-200 dark:border-zinc-800">
                     <p className="text-[10px] uppercase font-bold text-zinc-600 dark:text-zinc-400">Started At</p>
                     <p className="mt-1 font-mono font-bold text-zinc-950 dark:text-zinc-100">
-                      {new Date(selectedSession.started_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatLocalTime(selectedSession.started_at)}
                     </p>
                   </div>
 
@@ -404,7 +399,7 @@ export default function SessionsView() {
                               {isCanary ? "CANARY TRIPWIRE TRIPPED" : ev.event_type}
                             </span>
                             <span className="text-[10px] text-zinc-400 font-mono">
-                              {new Date(ev.timestamp).toLocaleTimeString()}
+                              {formatEventTime(ev.timestamp)}
                             </span>
                           </div>
 

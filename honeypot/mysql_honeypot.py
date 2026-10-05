@@ -5,7 +5,7 @@ import threading
 import requests
 from deception import AdaptiveDeceptionEngine
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 
 deception_engine = AdaptiveDeceptionEngine()
@@ -28,20 +28,41 @@ class MySQLHoneypotServer:
         try:
             # 1. Send simulated MySQL Handshake Initialization Packet (Protocol v10)
             # MySQL Server Version: 5.7.34-log
-            handshake_packet = (
-                b"\x4a\x00\x00\x00\x0a\x35\x2e\x37\x2e\x33\x34\x2d\x6c\x6f\x67\x00"
-                b"\x0d\x00\x00\x00\x4e\x7b\x23\x51\x3a\x38\x59\x26\x00\xff\xf7\x21"
-                b"\x02\x00\x7f\x80\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x4b"
-                b"\x37\x21\x65\x29\x4d\x23\x4f\x66\x42\x00\x6d\x79\x73\x71\x6c\x5f"
-                b"\x6e\x61\x74\x69\x76\x65\x5f\x70\x61\x73\x73\x77\x6f\x72\x64\x00"
+            salt1 = b"N{#Q:8Y&"                                 # 8 bytes
+            salt2 = b"K7!e)M#OfB12\x00"                         # 13 bytes (12 bytes salt + 1 NUL byte)
+            hs_payload = (
+                b"\x0a"                                         # Protocol 10
+                b"5.7.34-log\x00"                               # Server Version (null-terminated)
+                b"\x0d\x00\x00\x00"                             # Connection ID: 13
+                + salt1 +                                       # auth-plugin-data-part-1 (8 bytes)
+                b"\x00"                                         # filler
+                b"\xff\xf7"                                     # capability flags (lower 2 bytes)
+                b"\x21"                                         # character set (utf8_general_ci: 33)
+                b"\x02\x00"                                     # status flags (SERVER_STATUS_AUTOCOMMIT: 2)
+                b"\x7f\x80"                                     # capability flags (upper 2 bytes)
+                b"\x15"                                         # auth_plugin_data_len (21 bytes)
+                b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"  # reserved (10 bytes 0x00)
+                + salt2 +                                       # auth-plugin-data-part-2 (13 bytes = max(13, 21 - 8))
+                b"mysql_native_password\x00"                    # auth_plugin_name (null-terminated)
             )
+            handshake_packet = len(hs_payload).to_bytes(3, 'little') + b"\x00" + hs_payload
             client_socket.sendall(handshake_packet)
 
             # 2. Receive Auth Response Packet from client
-            auth_data = client_socket.recv(1024)
+            header = client_socket.recv(4)
+            auth_payload = b""
+            if len(header) == 4:
+                pkt_len = int.from_bytes(header[:3], 'little')
+                while len(auth_payload) < pkt_len:
+                    chunk = client_socket.recv(pkt_len - len(auth_payload))
+                    if not chunk:
+                        break
+                    auth_payload += chunk
+
+            auth_data = header + auth_payload
             username = "root"
             if len(auth_data) > 36:
-                # Extract username string from MySQL Auth Packet
+                # Extract username string from MySQL Auth Packet (offset 36 in HandshakeResponse41)
                 try:
                     user_bytes = auth_data[36:].split(b'\x00')[0]
                     if user_bytes:
@@ -69,14 +90,10 @@ class MySQLHoneypotServer:
                 print(f"[-] MySQL Session registration failed: {e}")
 
             # 3. Trigger Deception Response: Return Access Denied Error Packet
-            # Error Code 1045 (28000): Access denied for user 'username'@'ip'
-            error_packet = (
-                b"\x44\x00\x00\x02\xff\x15\x04\x23\x32\x38\x30\x30\x30\x41\x63\x63"
-                b"\x65\x73\x73\x20\x64\x65\x6e\x69\x65\x64\x20\x66\x6f\x72\x20\x75"
-                b"\x73\x65\x72\x20\x27\x72\x6f\x6f\x74\x27\x40\x27\x25\x27\x20\x28"
-                b"\x75\x73\x69\x6e\x67\x20\x70\x61\x73\x73\x77\x6f\x72\x64\x3a\x20"
-                b"\x59\x45\x53\x29\x00"
-            )
+            # Error Code 1045 (28000): Access denied for user 'username'@'%' (using password: YES)
+            err_msg = f"Access denied for user '{username}'@'%' (using password: YES)".encode('utf-8')
+            err_payload = b"\xff\x15\x04#28000" + err_msg
+            error_packet = len(err_payload).to_bytes(3, 'little') + b"\x02" + err_payload
             client_socket.sendall(error_packet)
 
             # Log Deception Trigger Event
@@ -102,6 +119,10 @@ class MySQLHoneypotServer:
                     requests.patch(f"{BACKEND_URL}/api/sessions/{session_id}", timeout=2)
                 except Exception:
                     pass
+            try:
+                client_socket.shutdown(socket.SHUT_WR)
+            except Exception:
+                pass
             client_socket.close()
 
     def start(self):

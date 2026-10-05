@@ -7,6 +7,7 @@ import {
   humanizeEventType,
   type EventCategory,
 } from "../lib/honeypot-events";
+import { formatClock } from "../lib/time";
 
 // ---------------------------------------------------------------------------
 // Types — mirror the payloads broadcast by ConnectionManager in backend/main.py
@@ -77,18 +78,6 @@ const RECONNECT_MAX_DELAY_MS = 15000;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatClock(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString(undefined, {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return "--:--:--";
-  }
-}
 
 function toFeedRow(raw: RawMessage): FeedRow | null {
   if (raw.event_type === "session_created") {
