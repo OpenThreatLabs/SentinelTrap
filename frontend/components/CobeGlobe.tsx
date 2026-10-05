@@ -104,8 +104,8 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
   const cobeCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  const pointerInteracting = useRef<number | null>(null);
-  const pointerInteractionMovement = useRef(0);
+  const pointerX = useRef<number | null>(null);
+  const pointerY = useRef<number | null>(null);
   // Start with phi facing the Indian subcontinent
   const phiRef = useRef(3.36);
   const thetaRef = useRef(0.25);
@@ -290,7 +290,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
       const updatedMarkers = [
         {
           location: DECOY_TARGET.location,
-          size: 0.045,
+          size: 0.028,
           color: [0.08, 0.95, 0.85] as [number, number, number],
           id: "target-core",
         },
@@ -329,7 +329,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
     const baseMarkers = [
       {
         location: DECOY_TARGET.location,
-        size: 0.045,
+        size: 0.028,
         color: [0.08, 0.95, 0.85] as [number, number, number],
         id: "target-core",
       },
@@ -373,17 +373,18 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
     const overlayCtx = overlayCanvasRef.current.getContext("2d");
 
     const animate = () => {
-      // 1. Camera orbit rotation (Stately GitHub velocity)
+      // 1. Camera orbit rotation (Smooth continuous rotation)
       if (targetPhiRef.current !== null) {
         const delta = targetPhiRef.current - phiRef.current;
         if (Math.abs(delta) > 0.002) {
-          phiRef.current += delta * 0.06;
+          phiRef.current += delta * 0.08;
         } else {
           phiRef.current = targetPhiRef.current;
           targetPhiRef.current = null;
         }
       } else if (!isDragging.current && autoRotateRef.current) {
-        phiRef.current += 0.0005;
+        // Continuous 360-degree auto-rotation
+        phiRef.current += 0.0025;
       }
 
       globe.update({
@@ -398,7 +399,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
         const h = overlayCanvasRef.current.height;
         overlayCtx.clearRect(0, 0, w, h);
 
-        clockRef.current += 0.0010; // Gentle, elegant line traveling speed
+        clockRef.current += 0.0035; // Balanced, energetic laser transit speed
         const currentClock = clockRef.current;
 
         // Exact COBE projection mapping
@@ -429,23 +430,27 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
         // Render laser lines ONLY for real captured adversary targets
         const activeTargets = adversaryTargetsRef.current;
         const activeSelected = selectedAdversaryRef.current;
+        const now = Date.now();
+
+        // Track laser arrivals for target impact flare effects
+        let closestImpactAlpha = 0;
 
         activeTargets.forEach((adv, idx) => {
           const isSelected = adv.id === activeSelected?.id;
           const offset = idx * 0.1428;
           const tProgress = (currentClock + offset) % 1; // 0 to 1 continuous loop
 
-          // Sample 54 points along the 3D great-circle arc for butter-smooth curvature
-          const segments = 54;
+          // Sample 64 points along the 3D great-circle arc for ultra-smooth trajectory
+          const segments = 64;
           const points: { x: number; y: number; visible: boolean; depth: number }[] = [];
 
           for (let s = 0; s <= segments; s++) {
             const fraction = s / segments;
-            const pt3D = getArc3DPoint(adv.location, DECOY_TARGET.location, fraction, 0.8, 0.22);
+            const pt3D = getArc3DPoint(adv.location, DECOY_TARGET.location, fraction, 0.8, 0.23);
             points.push(project3D(pt3D));
           }
 
-          // A. Draw faint elegant static baseline trajectory guide
+          // A. Multi-layer subtle trajectory guide (dotted + subtle neon under-glow)
           overlayCtx.beginPath();
           let started = false;
           for (let i = 0; i < points.length; i++) {
@@ -461,101 +466,207 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
               started = false;
             }
           }
+          // Ambient arc guide with subtle dashed aesthetic
+          overlayCtx.save();
+          overlayCtx.setLineDash([4 * dpr, 6 * dpr]);
           overlayCtx.strokeStyle = isSelected
-            ? "rgba(236, 72, 153, 0.25)"
-            : "rgba(56, 189, 248, 0.12)";
-          overlayCtx.lineWidth = 1.2 * dpr;
+            ? "rgba(244, 63, 94, 0.35)"
+            : "rgba(56, 189, 248, 0.18)";
+          overlayCtx.lineWidth = (isSelected ? 1.5 : 1.0) * dpr;
           overlayCtx.stroke();
+          overlayCtx.restore();
 
-          // B. Continuous traveling laser beam (Unbroken from origin t=0 to destination t=1)
-          const beamSpan = 0.25;
-          // Progress range allows tail to enter and head to exit cleanly without mid-flight truncation
-          const headT = Math.min(1, tProgress * (1 + beamSpan));
-          const tailT = Math.max(0, headT - beamSpan);
+          // B. High-tech Traveling Plasma Laser Stream with White-Hot Core
+          const beamSpan = 0.28;
+          // Clean continuous flight loop allowing smooth entry from origin and full absorption at destination
+          const cycleT = tProgress; // 0 to 1
+          const headT = Math.min(1.0, cycleT * (1 + beamSpan));
+          const tailT = Math.max(0.0, cycleT * (1 + beamSpan) - beamSpan);
+
+          // Impact flare triggers as head arrives (0.90 to 1.0) and sustains as tail finishes absorbing (0.0 to 0.15 of next cycle)
+          if (headT >= 0.88) {
+            const strikeProgress = (headT - 0.88) / 0.12; // 0 to 1
+            closestImpactAlpha = Math.max(closestImpactAlpha, Math.sin(strikeProgress * Math.PI * 0.5));
+          } else if (cycleT < 0.12) {
+            // Sustained dissipation flare as energy disperses into the decoy core
+            const dissipate = 1 - cycleT / 0.12;
+            closestImpactAlpha = Math.max(closestImpactAlpha, dissipate * 0.75);
+          }
 
           if (headT > tailT) {
-            const laserSteps = 32;
-            const laserPts: { x: number; y: number; visible: boolean; intensity: number }[] = [];
+            const laserSteps = 42;
+            const laserPts: { x: number; y: number; visible: boolean; intensity: number; t: number }[] = [];
 
             for (let j = 0; j <= laserSteps; j++) {
               const subFrac = j / laserSteps;
               const currentT = tailT + (headT - tailT) * subFrac;
 
-              const pt3D = getArc3DPoint(adv.location, DECOY_TARGET.location, currentT, 0.8, 0.22);
+              const pt3D = getArc3DPoint(adv.location, DECOY_TARGET.location, currentT, 0.8, 0.23);
               const p = project3D(pt3D);
               laserPts.push({
                 x: p.x,
                 y: p.y,
                 visible: p.visible,
                 intensity: subFrac,
+                t: currentT,
               });
             }
 
-            // Draw unbroken continuous stroke
+            // Layer 1: Wide Volumetric Atmospheric Plasma Glow (Soft bloom)
             for (let k = 1; k < laserPts.length; k++) {
               const p0 = laserPts[k - 1];
               const p1 = laserPts[k];
 
-              // Draw segment if at least one point is on the visible front hemisphere
               if (p0.visible || p1.visible) {
                 overlayCtx.beginPath();
                 overlayCtx.moveTo(p0.x, p0.y);
                 overlayCtx.lineTo(p1.x, p1.y);
 
-                const alpha = Math.max(0.1, p1.intensity) * (isSelected ? 0.95 : 0.85);
-                const strokeWidth = (1.0 + p1.intensity * 2.2) * dpr;
+                // Non-linear power curve for intense head bloom that smoothly tapers down to zero at the tail
+                const glowAlpha = Math.pow(p1.intensity, 2.0) * (isSelected ? 0.85 : 0.65);
+                const glowWidth = (1.5 + Math.pow(p1.intensity, 1.5) * 6.5) * dpr;
 
                 overlayCtx.strokeStyle = isSelected
-                  ? `rgba(244, 63, 94, ${alpha})`
-                  : `rgba(6, 182, 212, ${alpha})`;
+                  ? `rgba(244, 63, 94, ${glowAlpha * 0.45})`
+                  : `rgba(6, 182, 212, ${glowAlpha * 0.45})`;
+                overlayCtx.lineWidth = glowWidth;
+                overlayCtx.lineCap = "round";
+                overlayCtx.stroke();
+              }
+            }
+
+            // Layer 2: Main Saturated Energy Beam (Gradient-interpolated body)
+            for (let k = 1; k < laserPts.length; k++) {
+              const p0 = laserPts[k - 1];
+              const p1 = laserPts[k];
+
+              if (p0.visible || p1.visible) {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(p0.x, p0.y);
+                overlayCtx.lineTo(p1.x, p1.y);
+
+                const alpha = Math.max(0.04, Math.pow(p1.intensity, 1.3)) * (isSelected ? 1.0 : 0.95);
+                const strokeWidth = (0.8 + Math.pow(p1.intensity, 1.2) * 3.2) * dpr;
+
+                overlayCtx.strokeStyle = isSelected
+                  ? `rgba(251, 113, 133, ${alpha})`
+                  : `rgba(34, 211, 238, ${alpha})`;
                 overlayCtx.lineWidth = strokeWidth;
                 overlayCtx.lineCap = "round";
                 overlayCtx.stroke();
               }
             }
 
-            // Glowing pulse head at the tip of the traveling beam
+            // Layer 3: Razor-Sharp White-Hot Core Needle (Concentrated at the leading 50% of the beam)
+            const coreStartIndex = Math.floor(laserPts.length * 0.50);
+            for (let k = coreStartIndex; k < laserPts.length; k++) {
+              const p0 = laserPts[k - 1];
+              const p1 = laserPts[k];
+
+              if (p0.visible || p1.visible) {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(p0.x, p0.y);
+                overlayCtx.lineTo(p1.x, p1.y);
+
+                const progressInCore = (k - coreStartIndex) / (laserPts.length - coreStartIndex);
+                const coreAlpha = Math.pow(progressInCore, 1.4) * 0.98;
+                const coreWidth = (0.7 + progressInCore * 1.0) * dpr;
+
+                overlayCtx.strokeStyle = `rgba(255, 255, 255, ${coreAlpha})`;
+                overlayCtx.lineWidth = coreWidth;
+                overlayCtx.lineCap = "round";
+                overlayCtx.stroke();
+              }
+            }
+
+            // Layer 4: Floating Micro Energy Sparks trailing organically in the ionized wake
+            const sparkInterval = 3;
+            for (let s = sparkInterval; s < laserPts.length - 2; s += sparkInterval) {
+              const sp = laserPts[s];
+              if (sp.visible && sp.intensity > 0.2) {
+                // Subtle organic vibration jitter
+                const jitterX = Math.sin(now * 0.01 + s * 1.5) * 1.2 * dpr;
+                const jitterY = Math.cos(now * 0.01 + s * 1.5) * 1.2 * dpr;
+                const sparkSize = (0.6 + Math.pow(sp.intensity, 1.8) * 1.4) * dpr;
+                const sparkAlpha = Math.pow(sp.intensity, 1.5) * 0.75;
+
+                overlayCtx.beginPath();
+                overlayCtx.arc(sp.x + jitterX, sp.y + jitterY, sparkSize, 0, Math.PI * 2);
+                overlayCtx.fillStyle = isSelected
+                  ? `rgba(254, 205, 211, ${sparkAlpha})`
+                  : `rgba(207, 250, 254, ${sparkAlpha})`;
+                overlayCtx.fill();
+              }
+            }
+
+            // Layer 5: Constant-Size Laser Tip (Clean penetration with zero expansion)
             const leadPt = laserPts[laserPts.length - 1];
-            if (leadPt && leadPt.visible && headT < 0.99) {
+            if (leadPt && leadPt.visible) {
+              // Outer plasma corona bloom (fixed size)
               overlayCtx.beginPath();
-              overlayCtx.arc(leadPt.x, leadPt.y, (isSelected ? 3.5 : 2.5) * dpr, 0, Math.PI * 2);
-              overlayCtx.fillStyle = isSelected ? "#fda4af" : "#a5f3fc";
-              overlayCtx.shadowColor = isSelected ? "#f43f5e" : "#06b6d4";
-              overlayCtx.shadowBlur = 8 * dpr;
+              overlayCtx.arc(leadPt.x, leadPt.y, (isSelected ? 4.0 : 3.0) * dpr, 0, Math.PI * 2);
+              overlayCtx.fillStyle = isSelected ? "rgba(244, 63, 94, 0.45)" : "rgba(6, 182, 212, 0.45)";
+              overlayCtx.fill();
+
+              // Secondary energy halo (fixed size)
+              overlayCtx.beginPath();
+              overlayCtx.arc(leadPt.x, leadPt.y, (isSelected ? 2.6 : 2.0) * dpr, 0, Math.PI * 2);
+              overlayCtx.fillStyle = isSelected ? "rgba(251, 113, 133, 0.85)" : "rgba(103, 232, 249, 0.85)";
+              overlayCtx.fill();
+
+              // Blinding white-hot core contact point (fixed size)
+              overlayCtx.beginPath();
+              overlayCtx.arc(leadPt.x, leadPt.y, (isSelected ? 1.6 : 1.3) * dpr, 0, Math.PI * 2);
+              overlayCtx.fillStyle = "#ffffff";
+              overlayCtx.shadowColor = isSelected ? "#f43f5e" : "#22d3ee";
+              overlayCtx.shadowBlur = 10 * dpr;
               overlayCtx.fill();
               overlayCtx.shadowBlur = 0;
             }
           }
 
-          // C. Threat Origin Marker Pin & Location Telemetry Tag on the Globe
+          // C. Threat Origin Marker Pin & Dual-Stage Expanding Radar Echoes
           const origin3D = latLngToVector(adv.location);
           const originRadius = 0.8 + 0.015;
           const originScreen = project3D([origin3D[0] * originRadius, origin3D[1] * originRadius, origin3D[2] * originRadius]);
 
           if (originScreen.visible) {
-            // Pulse ring at origin
-            const origPulse = ((Date.now() + idx * 400) % 1800) / 1800;
-            const origPulseRad = (4 + origPulse * 12) * dpr;
-            const origPulseAlpha = Math.max(0, 1 - origPulse);
+            // Echo Ring 1 (Primary radar wave)
+            const cycle1 = ((now + idx * 450) % 2000) / 2000;
+            const rad1 = (3 + cycle1 * 16) * dpr;
+            const alpha1 = Math.max(0, 1 - Math.pow(cycle1, 0.8));
 
             overlayCtx.beginPath();
-            overlayCtx.arc(originScreen.x, originScreen.y, origPulseRad, 0, Math.PI * 2);
+            overlayCtx.arc(originScreen.x, originScreen.y, rad1, 0, Math.PI * 2);
             overlayCtx.strokeStyle = isSelected
-              ? `rgba(244, 63, 94, ${origPulseAlpha * 0.8})`
-              : `rgba(234, 179, 8, ${origPulseAlpha * 0.7})`;
-            overlayCtx.lineWidth = 1.2 * dpr;
+              ? `rgba(244, 63, 94, ${alpha1 * 0.85})`
+              : `rgba(245, 158, 11, ${alpha1 * 0.75})`;
+            overlayCtx.lineWidth = 1.3 * dpr;
+            overlayCtx.stroke();
+
+            // Echo Ring 2 (Secondary harmonic wave, offset by 35%)
+            const cycle2 = ((now + idx * 450 + 700) % 2000) / 2000;
+            const rad2 = (3 + cycle2 * 14) * dpr;
+            const alpha2 = Math.max(0, 1 - Math.pow(cycle2, 0.8));
+
+            overlayCtx.beginPath();
+            overlayCtx.arc(originScreen.x, originScreen.y, rad2, 0, Math.PI * 2);
+            overlayCtx.strokeStyle = isSelected
+              ? `rgba(251, 113, 133, ${alpha2 * 0.45})`
+              : `rgba(252, 211, 77, ${alpha2 * 0.4})`;
+            overlayCtx.lineWidth = 1.0 * dpr;
             overlayCtx.stroke();
 
             // Core center node at origin
             overlayCtx.beginPath();
             overlayCtx.arc(originScreen.x, originScreen.y, (isSelected ? 3.5 : 2.5) * dpr, 0, Math.PI * 2);
-            overlayCtx.fillStyle = isSelected ? "#f43f5e" : "#eab308";
-            overlayCtx.shadowColor = isSelected ? "#f43f5e" : "#eab308";
-            overlayCtx.shadowBlur = 8 * dpr;
+            overlayCtx.fillStyle = isSelected ? "#f43f5e" : "#f59e0b";
+            overlayCtx.shadowColor = isSelected ? "#f43f5e" : "#f59e0b";
+            overlayCtx.shadowBlur = 10 * dpr;
             overlayCtx.fill();
             overlayCtx.shadowBlur = 0;
 
-            // Render origin badge text with just the country name
+            // Render origin badge text with country name + threat indicator
             if (isSelected || activeTargets.length <= 6) {
               const labelText = adv.country;
 
@@ -567,9 +678,9 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
               const boxX = originScreen.x + 8 * dpr;
               const boxY = originScreen.y - boxHeight / 2;
 
-              // Rounded badge background
-              overlayCtx.fillStyle = "rgba(7, 11, 20, 0.88)";
-              overlayCtx.strokeStyle = isSelected ? "rgba(244, 63, 94, 0.7)" : "rgba(234, 179, 8, 0.5)";
+              // Rounded glassmorphic telemetry badge
+              overlayCtx.fillStyle = "rgba(6, 11, 24, 0.92)";
+              overlayCtx.strokeStyle = isSelected ? "rgba(244, 63, 94, 0.75)" : "rgba(245, 158, 11, 0.55)";
               overlayCtx.lineWidth = 1 * dpr;
 
               overlayCtx.beginPath();
@@ -577,44 +688,88 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
               overlayCtx.fill();
               overlayCtx.stroke();
 
-              // Country Name
+              // Country Name with glowing fill
               overlayCtx.fillStyle = isSelected ? "#fecdd3" : "#fef08a";
               overlayCtx.fillText(labelText, boxX + padding, boxY + 12.5 * dpr);
             }
           }
         });
 
-        // D. Pulse ring at India HoneyCore Decoy destination point
+        // D. High-Tech Animated India Decoy Node (Micro Cyber Reticle + Phased Radar Beacon)
         const india3D = latLngToVector(DECOY_TARGET.location);
-        const indiaRadius = 0.8 + 0.01;
+        const indiaRadius = 0.8 + 0.015;
         const indiaScreen = project3D([india3D[0] * indiaRadius, india3D[1] * indiaRadius, india3D[2] * indiaRadius]);
+
         if (indiaScreen.visible) {
-          const pulsePhase = (Date.now() % 2000) / 2000;
-          const pulseRadius = (6 + pulsePhase * 16) * dpr;
-          const pulseAlpha = Math.max(0, 1 - pulsePhase);
+          // 1. Dual-Phased Radar Sonar Waves (Refined, controlled radius between 3px and 12px)
+          const pulse1 = (now % 2000) / 2000;
+          const rad1 = (3 + pulse1 * 9) * dpr;
+          const alpha1 = Math.max(0, 1 - Math.pow(pulse1, 0.7));
 
           overlayCtx.beginPath();
-          overlayCtx.arc(indiaScreen.x, indiaScreen.y, pulseRadius, 0, Math.PI * 2);
-          overlayCtx.strokeStyle = `rgba(8, 243, 217, ${pulseAlpha * 0.75})`;
-          overlayCtx.lineWidth = 1.5 * dpr;
+          overlayCtx.arc(indiaScreen.x, indiaScreen.y, rad1, 0, Math.PI * 2);
+          overlayCtx.strokeStyle = `rgba(6, 182, 212, ${alpha1 * 0.8})`;
+          overlayCtx.lineWidth = 1.1 * dpr;
           overlayCtx.stroke();
 
-          // Static bright decoy center node
+          const pulse2 = ((now + 1000) % 2000) / 2000;
+          const rad2 = (3 + pulse2 * 9) * dpr;
+          const alpha2 = Math.max(0, 1 - Math.pow(pulse2, 0.7));
+
           overlayCtx.beginPath();
-          overlayCtx.arc(indiaScreen.x, indiaScreen.y, 4 * dpr, 0, Math.PI * 2);
-          overlayCtx.fillStyle = "#08f3d9";
-          overlayCtx.shadowColor = "#08f3d9";
-          overlayCtx.shadowBlur = 12 * dpr;
+          overlayCtx.arc(indiaScreen.x, indiaScreen.y, rad2, 0, Math.PI * 2);
+          overlayCtx.strokeStyle = `rgba(99, 102, 241, ${alpha2 * 0.6})`;
+          overlayCtx.lineWidth = 0.9 * dpr;
+          overlayCtx.stroke();
+
+          // 2. High-Tech Rotating Orbit Crosshairs (Micro Reticle)
+          const angle = (now * 0.0015) % (Math.PI * 2);
+          const reticleR = 6.5 * dpr;
+          overlayCtx.save();
+          overlayCtx.translate(indiaScreen.x, indiaScreen.y);
+          overlayCtx.rotate(angle);
+
+          for (let i = 0; i < 4; i++) {
+            const a = i * (Math.PI / 2);
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(Math.cos(a) * (reticleR - 1.5 * dpr), Math.sin(a) * (reticleR - 1.5 * dpr));
+            overlayCtx.lineTo(Math.cos(a) * (reticleR + 1.5 * dpr), Math.sin(a) * (reticleR + 1.5 * dpr));
+            overlayCtx.strokeStyle = "rgba(34, 211, 238, 0.75)";
+            overlayCtx.lineWidth = 1.1 * dpr;
+            overlayCtx.stroke();
+          }
+          overlayCtx.restore();
+
+          // 3. Central Decoy Core Node (Crisp glowing cyan)
+          overlayCtx.beginPath();
+          overlayCtx.arc(indiaScreen.x, indiaScreen.y, 2.4 * dpr, 0, Math.PI * 2);
+          overlayCtx.fillStyle = "#ffffff";
+          overlayCtx.shadowColor = "#06b6d4";
+          overlayCtx.shadowBlur = 8 * dpr;
           overlayCtx.fill();
           overlayCtx.shadowBlur = 0;
 
-          // India destination label (Just country name)
-          overlayCtx.font = `bold ${9.5 * dpr}px monospace`;
-          overlayCtx.fillStyle = "#2dd4bf";
-          overlayCtx.shadowColor = "#08f3d9";
-          overlayCtx.shadowBlur = 6 * dpr;
-          overlayCtx.fillText("India", indiaScreen.x + 8 * dpr, indiaScreen.y + 3.5 * dpr);
-          overlayCtx.shadowBlur = 0;
+          // 4. Tactical India Telemetry Tag (Modern pill badge with coordinate telemetry)
+          const labelText = "IND DECOY";
+          overlayCtx.font = `bold ${8.5 * dpr}px monospace`;
+          const textW = overlayCtx.measureText(labelText).width;
+          const pad = 5 * dpr;
+          const bH = 15 * dpr;
+          const bW = textW + pad * 2;
+          const bX = indiaScreen.x + 9 * dpr;
+          const bY = indiaScreen.y - bH / 2;
+
+          overlayCtx.fillStyle = "rgba(7, 14, 28, 0.90)";
+          overlayCtx.strokeStyle = "rgba(6, 182, 212, 0.65)";
+          overlayCtx.lineWidth = 1 * dpr;
+
+          overlayCtx.beginPath();
+          overlayCtx.roundRect(bX, bY, bW, bH, 3.5 * dpr);
+          overlayCtx.fill();
+          overlayCtx.stroke();
+
+          overlayCtx.fillStyle = "#22d3ee";
+          overlayCtx.fillText(labelText, bX + pad, bY + 10.5 * dpr);
         }
       }
 
@@ -712,28 +867,38 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
         {/* Layered Globe Container */}
         <div
           ref={containerRef}
-          className="relative w-full max-w-[600px] aspect-square flex items-center justify-center cursor-grab active:cursor-grabbing mx-auto"
+          className="relative w-full max-w-[600px] aspect-square flex items-center justify-center cursor-grab active:cursor-grabbing mx-auto touch-none select-none"
           onPointerDown={(e) => {
-            pointerInteracting.current = e.clientX;
+            pointerX.current = e.clientX;
+            pointerY.current = e.clientY;
             isDragging.current = true;
             (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           }}
           onPointerUp={(e) => {
-            pointerInteracting.current = null;
+            pointerX.current = null;
+            pointerY.current = null;
             isDragging.current = false;
             try {
               (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
             } catch {}
           }}
           onPointerCancel={() => {
-            pointerInteracting.current = null;
+            pointerX.current = null;
+            pointerY.current = null;
             isDragging.current = false;
           }}
           onPointerMove={(e) => {
-            if (pointerInteracting.current !== null && isDragging.current) {
-              const deltaX = e.clientX - pointerInteracting.current;
-              pointerInteracting.current = e.clientX;
-              phiRef.current += deltaX * 0.005;
+            if (pointerX.current !== null && pointerY.current !== null && isDragging.current) {
+              const deltaX = e.clientX - pointerX.current;
+              const deltaY = e.clientY - pointerY.current;
+              pointerX.current = e.clientX;
+              pointerY.current = e.clientY;
+
+              // Full 360-degree horizontal spin
+              phiRef.current += deltaX * 0.007;
+
+              // Gentle vertical tilt clamped naturally between -0.8 and +0.8 radians
+              thetaRef.current = Math.max(-0.8, Math.min(0.8, thetaRef.current - deltaY * 0.004));
             }
           }}
         >
@@ -754,7 +919,7 @@ export default function CobeGlobe({ className = "" }: { className?: string }) {
             style={{ width: "100%", height: "100%", maxWidth: "100%", aspectRatio: 1 }}
           />
 
-          {/* Center drag hint & status overlay */}
+          {/* Center drag hint */}
           <div className="absolute bottom-2 inset-x-0 text-center pointer-events-none z-20">
             <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400 dark:text-zinc-500 bg-zinc-100/80 dark:bg-[#0c1322]/80 px-3 py-1 rounded-full border border-zinc-200 dark:border-blue-900/30 backdrop-blur-sm">
               Drag to rotate 360°

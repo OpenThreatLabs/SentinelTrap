@@ -14,8 +14,6 @@ import {
   RefreshCw,
   ChevronRight,
 } from "lucide-react";
-import LiveFeed from "./LiveFeed";
-import TerminalReplay from "./TerminalReplay";
 import { formatLocalTime, formatEventTime } from "../lib/time";
 
 type Session = {
@@ -424,18 +422,6 @@ export default function SessionsView() {
                   )}
                 </div>
               </div>
-
-              {/* Live Attacker Command Feed for selected session */}
-              <LiveFeed
-                sessionId={selectedSession.id}
-                className="mt-6"
-              />
-
-              {/* Terminal Session Replay for selected session */}
-              <TerminalReplay
-                sessionId={selectedSession.id}
-                className="mt-4"
-              />
             </>
           ) : (
             <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 p-16 text-center text-zinc-500 bg-white dark:bg-zinc-950">
