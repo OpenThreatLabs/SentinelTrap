@@ -15,7 +15,15 @@ class IPThreatIntelligenceService:
         Performs IP Geolocation and ISP/ASN Threat Lookup with LRU caching.
         """
         # Internal / Local Network Fallbacks
-        if ip_address in ["127.0.0.1", "localhost", "::1"] or ip_address.startswith("192.168.") or ip_address.startswith("10."):
+        if (
+            ip_address in ["127.0.0.1", "localhost", "::1"]
+            or ip_address.startswith("192.168.")
+            or ip_address.startswith("10.")
+            or any(
+                ip_address.startswith(f"172.{i}.")
+                for i in range(16, 32)  # 172.16.x.x – 172.31.x.x  (RFC-1918 / Docker)
+            )
+        ):
             return {
                 "ip": ip_address,
                 "country": "Local Network",

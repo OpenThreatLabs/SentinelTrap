@@ -42,8 +42,13 @@ class PortScannerHoneypotTrap:
             except Exception as e:
                 print(f"[-] Scanner Trap Session registration failed: {e}")
 
-            # Read initial scanner payload
-            data = client_socket.recv(1024)
+            # Read initial scanner payload — use a short timeout so SYN-only
+            # probes (no data sent) don't block this handler indefinitely.
+            client_socket.settimeout(3.0)
+            try:
+                data = client_socket.recv(1024)
+            except (socket.timeout, OSError):
+                data = b""
             hex_payload = data.hex()[:100] if data else "SYN_CONNECT_ONLY"
 
             # Log scan event

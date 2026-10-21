@@ -4,7 +4,7 @@ import socket
 import threading
 import requests
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "2525"))
 
 class SMTPHoneypotServer:
@@ -28,6 +28,7 @@ class SMTPHoneypotServer:
         email_body = ""
 
         try:
+            client_socket.settimeout(30.0)
             # Banner greeting
             client_socket.sendall(b"220 mail.prod-web-srv-01.local ESMTP Postfix (Ubuntu)\r\n")
 

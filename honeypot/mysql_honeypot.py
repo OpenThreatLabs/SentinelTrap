@@ -26,6 +26,7 @@ class MySQLHoneypotServer:
     def handle_client(self, client_socket: socket.socket, client_ip: str):
         session_id = None
         try:
+            client_socket.settimeout(5.0)
             # 1. Send simulated MySQL Handshake Initialization Packet (Protocol v10)
             # MySQL Server Version: 5.7.34-log
             salt1 = b"N{#Q:8Y&"                                 # 8 bytes

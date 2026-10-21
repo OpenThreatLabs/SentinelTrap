@@ -27,6 +27,7 @@ class FTPHoneypotServer:
         pasv_sock = None
 
         try:
+            client_socket.settimeout(30.0)
             # Banner greeting
             client_socket.sendall(b"220 (vsFTPd 3.0.3 - Production File Server)\r\n")
 
@@ -44,27 +45,76 @@ class FTPHoneypotServer:
                     username = arg
                     client_socket.sendall(b"331 Please specify the password.\r\n")
 
+                    # Register session on initial USER probe for pre-authentication telemetry
+                    if not session_id:
+                        try:
+                            r = requests.post(
+                                f"{BACKEND_URL}/api/sessions",
+                                json={
+                                    "ip_address": client_ip,
+                                    "username_attempted": f"ftp_{username}",
+                                    "password_attempted": "",
+                                    "protocol": "FTP"
+                                },
+                                timeout=2
+                            )
+                            if r.status_code == 200:
+                                session_id = r.json().get("session_id")
+                        except Exception as e:
+                            print(f"[-] FTP Pre-auth Session registration failed: {e}")
+
+                    if session_id:
+                        try:
+                            requests.post(
+                                f"{BACKEND_URL}/api/sessions/{session_id}/events",
+                                json={
+                                    "protocol": "FTP",
+                                    "event_type": "ftp_preauth_probe",
+                                    "input_data": f"USER {username}",
+                                    "output_data": "331 Please specify the password."
+                                },
+                                timeout=2
+                            )
+                        except Exception:
+                            pass
+
                 elif cmd == "PASS":
                     password = arg
                     client_socket.sendall(b"230 Login successful.\r\n")
 
-                    # Register FTP Session with FastAPI Backend
+                    # Register or update FTP Session with FastAPI Backend
                     print(f"[+] FTP Login Attempt: IP={client_ip} | User={username} | Pass={password}")
-                    try:
-                        r = requests.post(
-                            f"{BACKEND_URL}/api/sessions",
-                            json={
-                                "ip_address": client_ip,
-                                "username_attempted": f"ftp_{username}",
-                                "password_attempted": password,
-                                "protocol": "FTP"
-                            },
-                            timeout=2
-                        )
-                        if r.status_code == 200:
-                            session_id = r.json().get("session_id")
-                    except Exception as e:
-                        print(f"[-] FTP Session Backend registration failed: {e}")
+                    if not session_id:
+                        try:
+                            r = requests.post(
+                                f"{BACKEND_URL}/api/sessions",
+                                json={
+                                    "ip_address": client_ip,
+                                    "username_attempted": f"ftp_{username}",
+                                    "password_attempted": password,
+                                    "protocol": "FTP"
+                                },
+                                timeout=2
+                            )
+                            if r.status_code == 200:
+                                session_id = r.json().get("session_id")
+                        except Exception as e:
+                            print(f"[-] FTP Session Backend registration failed: {e}")
+
+                    if session_id:
+                        try:
+                            requests.post(
+                                f"{BACKEND_URL}/api/sessions/{session_id}/events",
+                                json={
+                                    "protocol": "FTP",
+                                    "event_type": "login_attempt",
+                                    "input_data": f"PASS {password}",
+                                    "output_data": "230 Login successful."
+                                },
+                                timeout=2
+                            )
+                        except Exception:
+                            pass
 
                 elif cmd in ["SYST", "PWD", "CWD", "TYPE", "PORT", "PASV", "LIST", "STOR", "RETR"]:
                     # Log event to backend
@@ -73,6 +123,7 @@ class FTPHoneypotServer:
                             requests.post(
                                 f"{BACKEND_URL}/api/sessions/{session_id}/events",
                                 json={
+                                    "protocol": "FTP",
                                     "event_type": "ftp_command_execution",
                                     "input_data": cmd_line,
                                     "output_data": "Decoy Response Executed"

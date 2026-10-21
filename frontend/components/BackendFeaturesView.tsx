@@ -101,13 +101,22 @@ export default function BackendFeaturesView() {
     setClearing(true);
     setClearSuccess(null);
     try {
-      const res = await fetch(`${apiBase}/api/data/clear`, { method: "DELETE" });
+      const headers: Record<string, string> = {};
+      if (process.env.NEXT_PUBLIC_ADMIN_API_KEY) {
+        headers["X-Admin-Key"] = process.env.NEXT_PUBLIC_ADMIN_API_KEY;
+      }
+      const res = await fetch(`${apiBase}/api/data/clear`, {
+        method: "DELETE",
+        headers,
+      });
       if (res.ok) {
         setIsConfirmOpen(false);
         setClearSuccess("All captured attacker telemetry purged successfully!");
         setTimeout(() => {
           setClearSuccess(null);
         }, 3000);
+      } else if (res.status === 401) {
+        alert("Authentication failed: Valid Admin API Key required to clear telemetry.");
       } else {
         alert("Failed to clear data. Ensure backend is running.");
       }

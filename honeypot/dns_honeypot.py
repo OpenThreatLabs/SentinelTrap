@@ -5,7 +5,7 @@ import select
 import threading
 import requests
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 DNS_PORT = int(os.getenv("DNS_PORT", "5353"))
 DNS_HOST = os.getenv("DNS_HOST", "0.0.0.0")
 
@@ -98,6 +98,24 @@ class DNSHoneypotServer:
                 pass
         return sockets
 
+    def _report_telemetry(self, client_ip: str, qname: str):
+        try:
+            requests.post(
+                f"{BACKEND_URL}/api/events",
+                json={
+                    "ip_address": client_ip,
+                    "protocol": "DNS",
+                    "event_type": "dns_recon_attempt",
+                    "input_data": f"DNS Query: {qname}",
+                    "output_data": "Decoy A-Record Response: 10.0.4.18",
+                    "username_attempted": "dns_query",
+                    "password_attempted": qname[:50]
+                },
+                timeout=2
+            )
+        except Exception:
+            pass
+
     def start(self):
         try:
             self.sockets = self._create_sockets()
@@ -107,7 +125,7 @@ class DNSHoneypotServer:
             print(f"[*] DNS Honeypot listening on UDP port {self.port}...")
             
             while True:
-                readable, _, _ = select.select(self.sockets, [], [])
+                readable, _, _ = select.select(self.sockets, [], [], 1.0)
                 for sock in readable:
                     data, addr = sock.recvfrom(1024)
                     client_ip = addr[0]
@@ -115,48 +133,13 @@ class DNSHoneypotServer:
 
                     print(f"[+] DNS Query Probe: IP={client_ip} | Domain={qname}")
 
-                    # Send Decoy Response immediately
+                    # Send Decoy Response immediately (zero latency)
                     response_bytes = self.build_dns_response(data, qname)
                     if response_bytes:
                         sock.sendto(response_bytes, addr)
 
-                    # Register session with FastAPI Backend
-                    session_id = None
-                    try:
-                        r = requests.post(
-                            f"{BACKEND_URL}/api/sessions",
-                            json={
-                                "ip_address": client_ip,
-                                "username_attempted": "dns_query",
-                                "password_attempted": qname[:50],
-                                "protocol": "DNS"
-                            },
-                            timeout=2
-                        )
-                        if r.status_code == 200:
-                            session_id = r.json().get("session_id")
-                    except Exception:
-                        pass
-
-                    # Log event
-                    if session_id:
-                        try:
-                            requests.post(
-                                f"{BACKEND_URL}/api/sessions/{session_id}/events",
-                                json={
-                                    "event_type": "dns_recon_attempt",
-                                    "input_data": f"DNS Query: {qname}",
-                                    "output_data": "Decoy A-Record Response: 10.0.4.18"
-                                },
-                                timeout=2
-                            )
-                        except Exception:
-                            pass
-
-                        try:
-                            requests.patch(f"{BACKEND_URL}/api/sessions/{session_id}", timeout=2)
-                        except Exception:
-                            pass
+                    # Asynchronously dispatch telemetry so the UDP receive loop never blocks
+                    threading.Thread(target=self._report_telemetry, args=(client_ip, qname), daemon=True).start()
 
         except KeyboardInterrupt:
             print("\n[*] Stopping DNS Honeypot server.")

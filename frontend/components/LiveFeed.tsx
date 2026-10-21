@@ -8,6 +8,7 @@ import {
   type EventCategory,
 } from "../lib/honeypot-events";
 import { formatClock } from "../lib/time";
+import { getSentinelWsUrl } from "../lib/ws";
 
 // ---------------------------------------------------------------------------
 // Types — mirror the payloads broadcast by ConnectionManager in backend/main.py
@@ -60,14 +61,7 @@ interface FeedRow {
 type ConnectionState = "connecting" | "open" | "closed" | "error";
 
 function getWsUrl(): string {
-  if (process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL) {
-    return process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL;
-  }
-  if (typeof window !== "undefined") {
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.host}/ws`;
-  }
-  return "";
+  return getSentinelWsUrl();
 }
 
 const MAX_BUFFERED_ROWS = 500;

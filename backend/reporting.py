@@ -72,14 +72,16 @@ class IncidentReportGenerator:
         safe_user = escape(str(session.username_attempted or "Unknown"))
         safe_pass = escape(str(session.password_attempted or "N/A"))
 
-        story.append(Paragraph("🛡️ SentinelTrap Incident Forensics Report", title_style))
+        story.append(Paragraph("SentinelTrap Incident Forensics Report", title_style))
         story.append(Paragraph(f"<b>Session Reference ID:</b> {safe_id}", body_style))
         story.append(Paragraph(f"<b>Attacker IP Address:</b> {safe_ip} ({safe_city}, {safe_country})", body_style))
         story.append(Paragraph(f"<b>ISP / ASN Metadata:</b> {safe_isp} | {safe_asn}", body_style))
         story.append(Paragraph(f"<b>Target Credentials Tried:</b> {safe_user} / {safe_pass}", body_style))
-        story.append(Paragraph(f"<b>Session Started:</b> {session.started_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
+        started_str = session.started_at.strftime('%Y-%m-%d %H:%M:%S UTC') if session.started_at else "Unknown"
+        story.append(Paragraph(f"<b>Session Started:</b> {started_str}", body_style))
         if session.ended_at:
-            story.append(Paragraph(f"<b>Session Terminated:</b> {session.ended_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
+            ended_str = session.ended_at.strftime('%Y-%m-%d %H:%M:%S UTC')
+            story.append(Paragraph(f"<b>Session Terminated:</b> {ended_str}", body_style))
 
         story.append(Spacer(1, 10))
 
@@ -98,7 +100,7 @@ class IncidentReportGenerator:
 
         table_data = [["Time (UTC)", "Event Type", "Command / Input Executed"]]
         for event in events:
-            time_str = event.timestamp.strftime('%H:%M:%S')
+            time_str = event.timestamp.strftime('%H:%M:%S') if event.timestamp else "-"
             detail_text = event.input_data if event.input_data else (event.output_data or "")
             if len(detail_text) > 85:
                 detail_text = detail_text[:85] + "..."
@@ -165,7 +167,7 @@ class IncidentReportGenerator:
             textColor=colors.HexColor('#334155')
         )
 
-        story.append(Paragraph("🛡️ SentinelTrap SOC Threat Intelligence Executive Summary", title_style))
+        story.append(Paragraph("SentinelTrap SOC Threat Intelligence Executive Summary", title_style))
         story.append(Paragraph(f"<b>Report Generated:</b> {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", body_style))
         story.append(Paragraph(f"<b>Total Adversary Ingress Sessions:</b> {len(sessions)} | <b>Total Telemetry Events Logged:</b> {len(events)}", body_style))
         story.append(Paragraph("<b>Supervising Node:</b> SentinelTrap Multi-Layer Honeypot Mesh (VIT Bhopal)", body_style))
@@ -177,12 +179,13 @@ class IncidentReportGenerator:
         session_table_data = [["Origin IP", "Geolocation", "Protocol", "Attempted User", "Started Time"]]
 
         for s in sessions[:15]:
+            started_fmt = s.started_at.strftime('%m-%d %H:%M') if s.started_at else "-"
             session_table_data.append([
                 s.ip_address,
                 f"{s.city}, {s.country}",
                 s.protocol or "SSH",
                 s.username_attempted or "root",
-                s.started_at.strftime('%m-%d %H:%M')
+                started_fmt
             ])
 
         if len(session_table_data) == 1:
@@ -207,7 +210,7 @@ class IncidentReportGenerator:
         event_table_data = [["Timestamp", "Event Classification", "Command / Ingress Payload"]]
 
         for ev in events[:20]:
-            time_str = ev.timestamp.strftime('%H:%M:%S')
+            time_str = ev.timestamp.strftime('%H:%M:%S') if ev.timestamp else "-"
             detail = ev.input_data if ev.input_data else (ev.output_data or "")
             if len(detail) > 75:
                 detail = detail[:75] + "..."

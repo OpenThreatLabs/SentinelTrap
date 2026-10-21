@@ -20,10 +20,17 @@ services:
       dockerfile: Dockerfile
     container_name: sentineltrap_honeypot
     ports:
-      - "2222:2222"
+      - "2222:2222"       # SSH Honeypot
+      - "2223:2223"       # Telnet Honeypot
+      - "8080:8080"       # Web Trap Honeypot
+      - "2121:2121"       # FTP Honeypot
+      - "2525:2525"       # SMTP Honeypot
+      - "3306:3306"       # MySQL Database Decoy
+      - "6379:6379"       # Redis Database Decoy
+      - "5353:5353/udp"   # DNS Recon Honeypot
+      - "3389:3389"       # Port Scanner / RDP Decoy
     environment:
       - BACKEND_URL=http://backend:8000
-      - PORT=2222
     depends_on:
       - backend
     restart: unless-stopped

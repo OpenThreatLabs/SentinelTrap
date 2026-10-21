@@ -35,6 +35,7 @@ import {
   Cell,
 } from "recharts";
 import CobeGlobe from "./CobeGlobe";
+import { getSentinelWsUrl } from "../lib/ws";
 
 type OverviewStats = {
   total_sessions: number;
@@ -86,11 +87,7 @@ export default function Analytics() {
   const [downloading, setDownloading] = useState<string | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-  const wsUrl =
-    process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
-    (typeof window !== "undefined"
-      ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-      : "");
+  const wsUrl = getSentinelWsUrl();
 
   useEffect(() => {
     let isMounted = true;

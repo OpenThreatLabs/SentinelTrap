@@ -9,9 +9,10 @@ class VirtualShellSession:
     to the FastAPI Threat Intelligence backend.
     """
 
-    def __init__(self, session_id: str, backend_url: str):
+    def __init__(self, session_id: str, backend_url: str, protocol: str = "SSH"):
         self.session_id = session_id
         self.backend_url = backend_url
+        self.protocol = protocol
         self.cwd = "/root"
         self.username = "root"
         self.hostname = "prod-web-srv-01"
@@ -27,6 +28,7 @@ class VirtualShellSession:
             requests.post(
                 f"{self.backend_url}/api/sessions/{self.session_id}/events",
                 json={
+                    "protocol": self.protocol,
                     "event_type": event_type,
                     "input_data": input_data,
                     "output_data": output_data
@@ -47,13 +49,12 @@ class VirtualShellSession:
         if not cmd:
             return ""
 
-        # Log command execution event to Threat Intelligence backend
-        self.log_event(event_type="command_execution", input_data=cmd)
-
-        # Pass command to Adaptive Deception Engine first
+        # Check Adaptive Deception Engine FIRST — before generic command logging.
+        # This prevents the same command from being logged twice (once as command_execution
+        # and again as canary_tripwire_triggered / deception_triggered).
         deception_output, triggered, deception_type = self.deception_engine.inspect_and_respond(cmd)
         if triggered:
-            # Log canary tripwire or deception trap activation
+            # Log only the canary/deception event — skip the generic command_execution log
             is_canary = "canary_tripwire" in deception_type
             event_type = "canary_tripwire_triggered" if is_canary else "deception_triggered"
             self.log_event(
@@ -62,6 +63,9 @@ class VirtualShellSession:
                 output_data=f"Tripwire Beacon Dispatched: {deception_type}" if is_canary else f"Trap activated: {deception_type}"
             )
             return deception_output
+
+        # No deception triggered — log as a standard command execution event
+        self.log_event(event_type="command_execution", input_data=cmd)
 
         # Simulated standard Linux bash commands
         parts = cmd.split()

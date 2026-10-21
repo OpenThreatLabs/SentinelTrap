@@ -24,6 +24,7 @@ from reporting import IncidentReportGenerator
 from exporter import ThreatTelemetryExporter
 from autoshun import AutoShunFirewallEngine
 import vulnerabilities
+import alerts
 
 # Create database tables automatically on launch
 models.Base.metadata.create_all(bind=database.engine)
@@ -122,10 +123,19 @@ async def end_session(session_id: str, db: Session = Depends(database.get_db)):
 
 @app.post("/api/sessions/{session_id}/events")
 async def create_event(session_id: str, payload: schemas.EventCreate, db: Session = Depends(database.get_db)):
+    v_code = payload.vulnerability_code
+    if not v_code and payload.input_data:
+        detected = vulnerabilities.analyze_payload(payload.input_data)
+        v_code = detected[0] if detected else None
+
+    session = db.query(models.SessionModel).filter(models.SessionModel.id == session_id).first()
+    event_proto = payload.protocol or (session.protocol if session else "SSH")
+
     event = models.EventModel(
         session_id=session_id,
-        protocol=payload.protocol or "SSH",
+        protocol=event_proto,
         event_type=payload.event_type,
+        vulnerability_code=v_code,
         input_data=payload.input_data,
         output_data=payload.output_data,
         timestamp=datetime.datetime.utcnow()
@@ -139,13 +149,117 @@ async def create_event(session_id: str, payload: schemas.EventCreate, db: Sessio
         "session_id": session_id,
         "event": {
             "id": event.id,
+            "protocol": event.protocol,
             "event_type": event.event_type,
+            "vulnerability_code": event.vulnerability_code,
             "input_data": event.input_data,
             "output_data": event.output_data,
             "timestamp": event.timestamp.isoformat()
         }
     }))
-    return {"status": "success"}
+
+    # Evaluate security alert dispatch
+    ip = session.ip_address if session else "127.0.0.1"
+    risk_score = 80 if event.event_type in ["canary_tripwire_triggered", "deception_triggered"] else (
+        75 if v_code in ["PSI", "UCE", "SSRF"] else 30
+    )
+    alerts.SecurityAlertDispatcher.evaluate_and_dispatch(ip, event.event_type, event.input_data or "", risk_score)
+
+    return {"status": "success", "event_id": event.id}
+
+@app.post("/api/events")
+async def create_direct_event(payload: schemas.DirectEventCreate, db: Session = Depends(database.get_db)):
+    """
+    Direct Telemetry Ingress Endpoint for external/decoupled honeypot nodes
+    (e.g., Fake Ports, Advanced Web Honeypot, Attack Simulator).
+    Auto-registers or resolves the associated session and correlates threat telemetry.
+    """
+    session = None
+    if payload.session_id:
+        session = db.query(models.SessionModel).filter(models.SessionModel.id == payload.session_id).first()
+
+    if not session:
+        ip = payload.ip_address or "127.0.0.1"
+        recent_session = (
+            db.query(models.SessionModel)
+            .filter(
+                models.SessionModel.ip_address == ip,
+                models.SessionModel.protocol == (payload.protocol or "HTTP"),
+                models.SessionModel.ended_at.is_(None)
+            )
+            .order_by(models.SessionModel.started_at.desc())
+            .first()
+        )
+        if recent_session:
+            session = recent_session
+        else:
+            geo_intel = IPThreatIntelligenceService.lookup_ip(ip)
+            session = models.SessionModel(
+                ip_address=ip,
+                protocol=payload.protocol or "HTTP",
+                country=geo_intel.get("country", "Unknown"),
+                city=geo_intel.get("city", "Unknown"),
+                latitude=geo_intel.get("latitude", 0.0),
+                longitude=geo_intel.get("longitude", 0.0),
+                username_attempted=payload.username_attempted or "root",
+                password_attempted=payload.password_attempted or "",
+                started_at=datetime.datetime.utcnow()
+            )
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+
+            await manager.broadcast(json.dumps({
+                "event_type": "session_created",
+                "session": {
+                    "id": session.id,
+                    "ip_address": session.ip_address,
+                    "protocol": session.protocol,
+                    "country": session.country,
+                    "city": session.city,
+                    "username_attempted": session.username_attempted,
+                    "started_at": session.started_at.isoformat()
+                }
+            }))
+
+    v_code = payload.vulnerability_code
+    if not v_code and payload.input_data:
+        detected = vulnerabilities.analyze_payload(payload.input_data)
+        v_code = detected[0] if detected else None
+
+    event = models.EventModel(
+        session_id=session.id,
+        protocol=payload.protocol or session.protocol or "HTTP",
+        event_type=payload.event_type,
+        vulnerability_code=v_code,
+        input_data=payload.input_data,
+        output_data=payload.output_data,
+        timestamp=datetime.datetime.utcnow()
+    )
+    db.add(event)
+    db.commit()
+
+    await manager.broadcast(json.dumps({
+        "event_type": "new_event",
+        "session_id": session.id,
+        "event": {
+            "id": event.id,
+            "protocol": event.protocol,
+            "event_type": event.event_type,
+            "vulnerability_code": event.vulnerability_code,
+            "input_data": event.input_data,
+            "output_data": event.output_data,
+            "timestamp": event.timestamp.isoformat()
+        }
+    }))
+
+    risk_score = 80 if event.event_type in ["canary_tripwire_triggered", "deception_triggered"] else (
+        75 if v_code in ["PSI", "UCE", "SSRF"] else 30
+    )
+    alerts.SecurityAlertDispatcher.evaluate_and_dispatch(session.ip_address, event.event_type, event.input_data or "", risk_score)
+
+    return {"status": "success", "event_id": event.id, "session_id": session.id}
+
 
 @app.get("/api/sessions")
 def list_sessions(db: Session = Depends(database.get_db)):
@@ -196,6 +310,60 @@ def get_ip_threat_profile(ip_address: str, db: Session = Depends(database.get_db
         **analytics_profile
     }
 
+@app.get("/api/threat-intel/mitre/{session_id}")
+def get_session_mitre_mapping(session_id: str, db: Session = Depends(database.get_db)):
+    """
+    Deterministic MITRE ATT&CK Mapping Engine
+    Analyzes telemetry events for the given session and maps all detected attack payloads
+    to MITRE ATT&CK technique IDs, tactics, and risk weights without external AI dependencies.
+    """
+    session = db.query(models.SessionModel).filter(models.SessionModel.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    events = db.query(models.EventModel).filter(models.EventModel.session_id == session_id).order_by(models.EventModel.timestamp.asc()).all()
+    techniques = []
+    tactics = set()
+    seen_technique_keys = set()
+
+    for ev in events:
+        v_codes = []
+        if ev.vulnerability_code:
+            v_codes.append(ev.vulnerability_code)
+        if ev.input_data:
+            detected = vulnerabilities.analyze_payload(ev.input_data)
+            for d in detected:
+                if d not in v_codes:
+                    v_codes.append(d)
+
+        for code in v_codes:
+            mitre_info = vulnerabilities.get_mitre_info(code)
+            tech_key = (code, mitre_info["id"], ev.id)
+            if tech_key not in seen_technique_keys:
+                seen_technique_keys.add(tech_key)
+                tactics.add(mitre_info["tactic"])
+                techniques.append({
+                    "code": code,
+                    "technique_id": mitre_info["id"],
+                    "technique_name": mitre_info["name"],
+                    "tactic": mitre_info["tactic"],
+                    "event_id": ev.id,
+                    "event_type": ev.event_type,
+                    "input_data": ev.input_data or ""
+                })
+
+    risk_score = vulnerabilities.calculate_risk_score(events)
+
+    return {
+        "session_id": session_id,
+        "ip_address": session.ip_address,
+        "protocol": session.protocol,
+        "risk_score": risk_score,
+        "tactics_observed": sorted(list(tactics)),
+        "techniques": techniques,
+        "total_techniques_mapped": len(techniques)
+    }
+
 @app.get("/api/firewall/rules")
 def get_autoshun_firewall_rules(risk_threshold: int = 75, db: Session = Depends(database.get_db)):
     """Generate dynamic iptables, ufw, and decoy NAT redirection rules for high-risk IPs."""
@@ -230,15 +398,19 @@ def download_pdf_incident_report(session_id: str, db: Session = Depends(database
 @app.get("/api/export/csv")
 def export_csv_threat_log(db: Session = Depends(database.get_db)):
     """Export all captured events and sessions as a structured CSV spreadsheet."""
+    # Pre-fetch all sessions to eliminate N+1 query overhead
+    sessions = db.query(models.SessionModel).all()
+    session_map = {s.id: s for s in sessions}
+
     events = db.query(models.EventModel).order_by(models.EventModel.timestamp.desc()).all()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Event ID", "Session ID", "Origin IP", "Protocol", "Timestamp (UTC)", "Event Classification", "Command / Ingress Payload", "Output Response"])
+    writer.writerow(["Event ID", "Session ID", "Origin IP", "Protocol", "Timestamp (UTC)", "Event Classification", "Vulnerability Code", "Command / Ingress Payload", "Output Response"])
 
     for ev in events:
-        session = db.query(models.SessionModel).filter(models.SessionModel.id == ev.session_id).first()
+        session = session_map.get(ev.session_id)
         ip = session.ip_address if session else "Unknown"
-        proto = session.protocol if session else "TCP"
+        proto = (session.protocol if session else None) or ev.protocol or "TCP"
         writer.writerow([
             ev.id,
             ev.session_id,
@@ -246,6 +418,7 @@ def export_csv_threat_log(db: Session = Depends(database.get_db)):
             proto,
             ev.timestamp.isoformat() if ev.timestamp else "",
             ev.event_type,
+            ev.vulnerability_code or "",
             ev.input_data or "",
             ev.output_data or ""
         ])
@@ -347,11 +520,12 @@ async def clear_all_captured_data(
     Resets the SOC dashboard to a clean zero state and notifies all live WebSockets.
     Enforces authentication if ADMIN_API_KEY is configured in the environment.
     """
-    if ADMIN_API_KEY:
+    admin_key = os.getenv("ADMIN_API_KEY")
+    if admin_key:
         auth_header = request.headers.get("authorization", "")
         bearer_token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else ""
         provided = x_admin_key or key or bearer_token
-        if provided != ADMIN_API_KEY:
+        if provided != admin_key:
             raise HTTPException(status_code=401, detail="Unauthorized: Valid Admin API Key required to clear telemetry.")
     try:
         deleted_events = db.query(models.EventModel).delete()
@@ -659,7 +833,7 @@ def export_logs(format: str = "json", db: Session = Depends(database.get_db)):
 
 # --- WebSocket & Real-Time Endpoints ---
 
-@app.get("/ws")
+@app.get("/ws/info")
 def ws_info():
     return {"status": "online", "message": "SentinelTrap WebSocket endpoint. Connect using ws://.../ws"}
 

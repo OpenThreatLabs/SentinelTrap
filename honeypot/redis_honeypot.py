@@ -4,7 +4,7 @@ import socket
 import threading
 import requests
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 
 class RedisHoneypotServer:
@@ -42,6 +42,7 @@ class RedisHoneypotServer:
             print(f"[-] Redis Session Backend registration failed: {e}")
 
         try:
+            client_socket.settimeout(15.0)
             while True:
                 data = client_socket.recv(1024).decode('utf-8', errors='ignore')
                 if not data:
