@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatLocalTime } from "../lib/time";
+import { getSentinelWsUrl } from "../lib/ws";
 
 type Session = {
   id: string;
@@ -39,11 +40,7 @@ export default function SessionSidebar({
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-    const wsUrl =
-      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
-      (typeof window !== "undefined"
-        ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-        : "");
+    const wsUrl = getSentinelWsUrl();
 
     let isMounted = true;
     let ws: WebSocket | null = null;

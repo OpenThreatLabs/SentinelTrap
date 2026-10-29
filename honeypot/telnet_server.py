@@ -5,7 +5,7 @@ import threading
 import requests
 from shell import VirtualShellSession
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 TELNET_PORT = int(os.getenv("TELNET_PORT", "2223"))
 
 class TelnetHoneypotServer:
@@ -24,6 +24,7 @@ class TelnetHoneypotServer:
     def handle_client(self, client_socket: socket.socket, client_ip: str):
         session_id = None
         try:
+            client_socket.settimeout(30.0)
             # Handle basic Telnet negotiation bytes (Suppress Go Ahead, Echo off for password)
             client_socket.sendall(bytes([255, 251, 1, 255, 251, 3]))
 
@@ -57,7 +58,7 @@ class TelnetHoneypotServer:
             client_socket.sendall(b"\r\nWelcome to Ubuntu 22.04.1 LTS (GNU/Linux 5.15.0-52-generic x86_64)\r\n\r\n")
 
             # Initialize virtual shell session handler
-            shell = VirtualShellSession(session_id, BACKEND_URL)
+            shell = VirtualShellSession(session_id, BACKEND_URL, protocol="Telnet")
             client_socket.sendall(shell.get_prompt().encode('utf-8'))
 
             buf = ""

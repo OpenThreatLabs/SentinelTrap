@@ -76,7 +76,12 @@ class ThreatAnalyticsEngine:
         """
         Generates a comprehensive Threat Profile report for a specific attacker IP.
         """
-        sessions = db.query(models.SessionModel).filter(models.SessionModel.ip_address == ip_address).all()
+        sessions = (
+            db.query(models.SessionModel)
+            .filter(models.SessionModel.ip_address == ip_address)
+            .order_by(models.SessionModel.started_at.desc())
+            .all()
+        )
         if not sessions:
             return {"ip_address": ip_address, "status": "No historical activity recorded"}
 

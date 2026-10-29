@@ -17,34 +17,51 @@ class AutoShunFirewallEngine:
         and produces executable firewall rule commands.
         """
         sessions = db.query(models.SessionModel).all()
+        sessions_by_ip = {}
+        for s in sessions:
+            sessions_by_ip.setdefault(s.ip_address, []).append(s)
+
+        # Batch query all events in a single query
+        all_events = db.query(models.EventModel).all()
+        events_by_session = {}
+        for ev in all_events:
+            events_by_session.setdefault(ev.session_id, []).append(ev)
+
         shunned_ips = []
         iptables_commands = []
         ufw_commands = []
         decoy_redirect_commands = []
 
-        seen_ips = set()
-        for s in sessions:
-            if s.ip_address in seen_ips:
-                continue
-            seen_ips.add(s.ip_address)
+        for ip_address, ip_sessions in sessions_by_ip.items():
+            all_sessions_for_ip = ip_sessions
+            primary_session = all_sessions_for_ip[0]
+            ip_events = []
+            seen_sigs = set()
 
-            events = db.query(models.EventModel).filter(models.EventModel.session_id == s.id).all()
-            risk_score, classification, indicators = ThreatAnalyticsEngine.calculate_risk_score(events)
+            # Aggregate and deduplicate events across ALL sessions from this IP (in_(all_session_ids) batch)
+            for sess in all_sessions_for_ip:
+                for ev in events_by_session.get(sess.id, []):
+                    sig = (ev.event_type, ev.input_data, ev.timestamp)
+                    if sig not in seen_sigs:
+                        seen_sigs.add(sig)
+                        ip_events.append(ev)
+
+            risk_score, classification, indicators = ThreatAnalyticsEngine.calculate_risk_score(ip_events)
 
             if risk_score >= risk_threshold:
                 shunned_ips.append({
-                    "ip_address": s.ip_address,
+                    "ip_address": ip_address,
                     "risk_score": risk_score,
                     "classification": classification,
-                    "country": s.country
+                    "country": primary_session.country
                 })
                 # iptables drop rule
-                iptables_commands.append(f"iptables -A INPUT -s {s.ip_address} -j DROP")
+                iptables_commands.append(f"iptables -A INPUT -s {ip_address} -j DROP")
                 # ufw deny rule
-                ufw_commands.append(f"ufw deny from {s.ip_address} to any")
+                ufw_commands.append(f"ufw deny from {ip_address} to any")
                 # Decoy container NAT redirect rule (Redirect to Honeypot Sandbox IP 10.0.4.18)
                 decoy_redirect_commands.append(
-                    f"iptables -t nat -A PREROUTING -s {s.ip_address} -p tcp --dport 22 -j DNAT --to-destination 10.0.4.18:2222"
+                    f"iptables -t nat -A PREROUTING -s {ip_address} -p tcp --dport 22 -j DNAT --to-destination 10.0.4.18:2222"
                 )
 
         return {

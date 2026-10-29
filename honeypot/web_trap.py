@@ -68,6 +68,19 @@ class WebTrapHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         if triggered and deception_output:
+            if session_id:
+                try:
+                    requests.post(
+                        f"{BACKEND_URL}/api/sessions/{session_id}/events",
+                        json={
+                            "event_type": "deception_triggered",
+                            "input_data": f"GET {self.path}",
+                            "output_data": deception_output[:500]
+                        },
+                        timeout=2
+                    )
+                except Exception:
+                    pass
             html = f"<html><body><pre>{deception_output}</pre></body></html>"
         elif "admin" in self.path or "login" in self.path:
             html = """

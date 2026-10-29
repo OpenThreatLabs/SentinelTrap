@@ -136,3 +136,45 @@ class AdaptiveDeceptionEngine:
             return output, True, "network_reconnaissance"
 
         return "", False, ""
+
+    @staticmethod
+    def get_fake_env() -> str:
+        """Generate fake environment secrets for deception web traps."""
+        return (
+            "APP_NAME=AcmeCoreProduction\n"
+            "APP_ENV=production\n"
+            "APP_KEY=base64:3fL4w0Z+1K8P9nE0A8cCdEfGhIjKlMnOpQrStUvWxYz=\n"
+            "APP_DEBUG=false\n"
+            "DB_CONNECTION=mysql\n"
+            "DB_HOST=10.0.4.18\n"
+            "DB_PORT=3306\n"
+            "DB_DATABASE=acme_prod_db\n"
+            "DB_USERNAME=admin_prod\n"
+            "DB_PASSWORD=P@ssw0rdProd2026!\n"
+            "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"
+            "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+            "AWS_DEFAULT_REGION=us-east-1\n"
+            "REDIS_HOST=10.0.4.25\n"
+            "REDIS_PORT=6379\n"
+        )
+
+    @staticmethod
+    def get_fake_aws_credentials() -> str:
+        """Generate fake AWS IAM security metadata credentials (SSRF trap)."""
+        return (
+            "{\n"
+            '  "Code": "Success",\n'
+            '  "LastUpdated": "2026-08-25T14:00:00Z",\n'
+            '  "Type": "AWS-HMAC",\n'
+            '  "AccessKeyId": "AKIAIOSFODNN7EXAMPLE",\n'
+            '  "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",\n'
+            '  "Token": "IQoJb3JpZ2luX2VjEEYaCXVzLWVhc3QtMSJHMEUCIQ...",\n'
+            '  "Expiration": "2026-08-25T20:00:00Z"\n'
+            "}\n"
+        )
+
+
+# Module-level aliases for direct imports (e.g. deception.get_fake_env())
+get_fake_env = AdaptiveDeceptionEngine.get_fake_env
+get_fake_aws_credentials = AdaptiveDeceptionEngine.get_fake_aws_credentials
+

@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 2222
+# Expose all multi-protocol honeypot decoy ports
+EXPOSE 2222 2223 8080 2121 2525 3306 6379 5353/udp 3389
 
-CMD ["python", "server.py"]
+CMD ["python", "runner.py"]

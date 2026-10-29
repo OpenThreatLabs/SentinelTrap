@@ -11,6 +11,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { getSentinelWsUrl } from "../lib/ws";
+
 type HeaderProps = {
   activePage: string;
   setActivePage: (page: string) => void;
@@ -35,11 +37,7 @@ export default function Header({
   ];
 
   useEffect(() => {
-    const wsUrl =
-      process.env.NEXT_PUBLIC_SENTINELTRAP_WS_URL ||
-      (typeof window !== "undefined"
-        ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-        : "");
+    const wsUrl = getSentinelWsUrl();
     const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
     let socket: WebSocket | null = null;

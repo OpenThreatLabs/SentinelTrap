@@ -31,18 +31,33 @@ class EventCreate(BaseModel):
     event_type: str = Field(default="command_execution", description="Type of honeypot event")
     input_data: Optional[str] = Field(default="", description="Raw command entered by attacker")
     output_data: Optional[str] = Field(default="", description="Response or deception output generated")
-    protocol: Optional[str] = Field(default="SSH", description="Protocol associated with this event")
+    protocol: Optional[str] = Field(default=None, description="Protocol associated with this event")
+    vulnerability_code: Optional[str] = Field(default=None, description="Vulnerability classification code")
 
 class EventResponse(BaseModel):
     id: int
     session_id: str
     timestamp: datetime
+    protocol: Optional[str] = "SSH"
     event_type: str
+    vulnerability_code: Optional[str] = None
     input_data: Optional[str] = None
     output_data: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class DirectEventCreate(BaseModel):
+    session_id: Optional[str] = Field(default=None, description="Existing session ID if known")
+    ip_address: Optional[str] = Field(default="127.0.0.1", description="IP address of the attacker")
+    protocol: Optional[str] = Field(default="HTTP", description="Protocol of the honeypot event")
+    event_type: str = Field(default="honeypot_event", description="Type of honeypot event")
+    input_data: Optional[str] = Field(default="", description="Command or ingress payload")
+    output_data: Optional[str] = Field(default="", description="Honeypot or deception response")
+    vulnerability_code: Optional[str] = Field(default=None, description="Vulnerability classification code")
+    username_attempted: Optional[str] = Field(default="Unknown", description="Username attempted")
+    password_attempted: Optional[str] = Field(default="", description="Password attempted")
+
 
 # --- Threat Intelligence Summary Schemas ---
 

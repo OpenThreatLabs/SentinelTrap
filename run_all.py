@@ -47,8 +47,16 @@ def main():
     signal.signal(signal.SIGTERM, cleanup)
 
     # Auto-detect project virtual environment python if running from global python
-    venv_py = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
-    python_exec = venv_py if os.path.exists(venv_py) else sys.executable
+    # Check both 'venv' (standard name) and '.venv' (alternate convention)
+    for venv_dir in ("venv", ".venv"):
+        candidate = os.path.join(BASE_DIR, venv_dir, "Scripts", "python.exe")  # Windows
+        if not os.path.exists(candidate):
+            candidate = os.path.join(BASE_DIR, venv_dir, "bin", "python")  # Unix/macOS
+        if os.path.exists(candidate):
+            python_exec = candidate
+            break
+    else:
+        python_exec = sys.executable
 
     # Detect npm command on Windows or Unix
     npm_cmd = "npm.cmd" if sys.platform.startswith("win") else "npm"
